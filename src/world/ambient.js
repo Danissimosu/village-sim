@@ -43,7 +43,7 @@ export class Ambient {
       uniforms: this.smokeU, transparent: true, depthWrite: false, fog: false,
       vertexShader: `uniform float uTime; uniform vec2 uWind; attribute float aPhase; varying float vA;
         void main(){ float age = fract(uTime * 0.11 + aPhase); vec3 p = position; p.y += age * 7.0; p.xz += uWind * age * age * 9.0 + vec2(sin(age * 9.0 + aPhase * 40.0), cos(age * 7.0 + aPhase * 30.0)) * age * 0.9;
-          vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = (0.6 + age * 3.4) * 120.0 / max(1.0, -mv.z) * 3.0; vA = smoothstep(0.0, 0.12, age) * (1.0 - age); }`,
+          vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = min(96.0, (0.6 + age * 3.4) * 120.0 / max(1.0, -mv.z) * 3.0); vA = smoothstep(0.0, 0.12, age) * (1.0 - age); }`,
       fragmentShader: `uniform float uAlpha; uniform float uLight; varying float vA;
         void main(){ vec2 c = gl_PointCoord - 0.5; float d = length(c) * 2.0; float a = smoothstep(1.0, 0.2, d) * vA * uAlpha * 0.55; if (a < 0.01) discard; gl_FragColor = vec4(vec3(0.72, 0.72, 0.74) * uLight, a); }`,
     });

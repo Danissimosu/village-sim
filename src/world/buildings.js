@@ -295,6 +295,7 @@ export function addBuilding(S, world, b) {
     let cxl = (rng() - 0.5) * b.w * 0.55;
     if (st.hip && st._hr !== undefined) cxl = clamp(cxl, -st._hr + 0.2, st._hr - 0.2);
     const czl = (rng() < 0.5 ? -1 : 1) * 0.35;
+    st._chx = cxl;
     const top = ridgeY + 0.85;
     b.chimneyPos = tf(cxl, top + 0.2, czl);
     const Br = S.get(b.x, b.z, 'brick');
@@ -311,6 +312,25 @@ export function addBuilding(S, world, b) {
     R.quad(rq[0], rq[1], rq[2], rq[3], [[0, 0], [ad / ruv, 0], [ad / ruv, aw / ruv], [0, aw / ruv]], roofCol, ins);
     const xw = sg * (hw + aw + 0.02);
     Win.quad(tf(xw, y0 + 0.85, zc - 0.55), tf(xw, y0 + 0.85, zc + 0.55), tf(xw, y0 + 1.85, zc + 0.55), tf(xw, y0 + 1.85, zc - 0.55), [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1], ins);
+  }
+  if (kind === 'house' && !civic && !st.hip && levels === 1 && (st.seed % 4 === 0) && b.w >= 7.5 && (st.pitch || 32) >= 31) { // roof dormer (мансардне вікно) on the front slope
+    const dr = mulberry32((st.seed ^ 0x1f3d5b79) >>> 0);
+    const ovD = 0.5, eaveD = yt - ovD * pitch, zfD = hd + ovD, HD = ridgeY - eaveD;
+    const ySl = (z) => ridgeY - (HD * z) / zfD;
+    const zd = zfD * 0.6, yb2 = ySl(zd), ye = yb2 + 1.0, yr = ye + 0.42, hwD = 0.6;
+    if (yr < ridgeY - 0.3) {
+      let aD = (dr() < 0.5 ? -1 : 1) * b.w * 0.27;
+      if (st._chx !== undefined && Math.abs(aD - st._chx) < 1.4) aD = -aD;
+      const xl = aD - hwD, xr = aD + hwD, ze = zfD * (ridgeY - ye) / HD, zr = zfD * (ridgeY - yr) / HD, zdf = zd + 0.14;
+      const insD = tf(aD, yb2 + 0.4, zd - 0.5);
+      W.quad(tf(xl, yb2, zd), tf(xr, yb2, zd), tf(xr, ye, zd), tf(xl, ye, zd), [[0, 0], [1.2 / uvw, 0], [1.2 / uvw, 1 / uvw], [0, 1 / uvw]], wallCol, insD);
+      W.tri(tf(xl, ye, zd), tf(xr, ye, zd), tf(aD, yr, zd), [[0, 0], [1.2 / uvw, 0], [0.6 / uvw, 0.4 / uvw]], wallCol, insD);
+      for (const xx2 of [xl, xr]) W.tri(tf(xx2, yb2, zd), tf(xx2, ye, zd), tf(xx2, ye, ze), [[0, 0], [1 / uvw, 0], [1 / uvw, 1 / uvw]], wallCol, tf(aD, ye - 0.3, zd - 0.5));
+      const rl = roofCol;
+      R.quad(tf(xl - 0.12, ye - 0.05, zdf), tf(aD, yr + 0.05, zdf), tf(aD, yr + 0.05, zr), tf(xl - 0.12, ye - 0.05, ze), [[0, 0], [0.8 / ruv, 0], [0.8 / ruv, 1.6 / ruv], [0, 1.6 / ruv]], rl, tf(aD, ye - 0.5, zd));
+      R.quad(tf(xr + 0.12, ye - 0.05, zdf), tf(aD, yr + 0.05, zdf), tf(aD, yr + 0.05, zr), tf(xr + 0.12, ye - 0.05, ze), [[0, 0], [0.8 / ruv, 0], [0.8 / ruv, 1.6 / ruv], [0, 1.6 / ruv]], rl, tf(aD, ye - 0.5, zd));
+      (dr() < 0.4 ? WinL : Win).quad(tf(aD - 0.4, yb2 + 0.2, zd + 0.02), tf(aD + 0.4, yb2 + 0.2, zd + 0.02), tf(aD + 0.4, ye - 0.12, zd + 0.02), tf(aD - 0.4, ye - 0.12, zd + 0.02), [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1], insD);
+    }
   }
   if (kind === 'industrial') { // roof vent boxes
     S.get(b.x, b.z, 'roofSlate').box(tf, -2, ridgeY - 0.1, -0.8, 2, ridgeY + 0.5, 0.8, 1.5, [0.5, 0.52, 0.55]);
