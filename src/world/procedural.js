@@ -61,6 +61,10 @@ export function makeFenceTextures() {
     } else if (type === 'board') {
       const n = 18, pw = W / n;
       for (let i = 0; i < n; i++) { const sh = 200 + Math.random() * 45; g.fillStyle = `rgb(${sh},${sh - 6},${sh - 14})`; g.fillRect(i * pw, 0, pw - 1.5, H); g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(i * pw + pw - 4, 0, 2.5, H); }
+    } else if (type === 'metal') { // profiled sheet (профнастил): vertical ribs
+      const n = 30, pw = W / n;
+      for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? 'rgb(236,236,236)' : 'rgb(208,208,208)'; g.fillRect(i * pw, 0, pw, H); g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(i * pw, 0, 2, H); }
+      g.fillStyle = 'rgb(170,170,170)'; g.fillRect(0, 0, W, 6); g.fillRect(0, H - 5, W, 5);
     } else { // wire mesh on posts
       g.strokeStyle = 'rgba(150,155,160,1)'; g.lineWidth = 2;
       for (let i = -H; i < W + H; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + H, H); g.stroke(); g.beginPath(); g.moveTo(i + H, 0); g.lineTo(i, H); g.stroke(); }
@@ -69,7 +73,7 @@ export function makeFenceTextures() {
     }
     const t = canvasTex(c); t.anisotropy = 8; return t;
   };
-  return { picket: mk('picket'), board: mk('board'), mesh: mk('mesh') };
+  return { picket: mk('picket'), board: mk('board'), mesh: mk('mesh'), metal: mk('metal') };
 }
 
 export function makeTuftTexture() {

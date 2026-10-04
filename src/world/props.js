@@ -6,7 +6,9 @@ import { resample } from '../util.js';
 
 const FENCE = {
   picket: { tex: 'picket', h: 1.15, col: [0.82, 0.68, 0.5] }, picket_white: { tex: 'picket', h: 1.15, col: [1, 1, 1] }, picket_green: { tex: 'picket', h: 1.2, col: [0.35, 0.55, 0.38] },
-  board: { tex: 'board', h: 1.9, col: [0.62, 0.5, 0.4] }, mesh: { tex: 'mesh', h: 1.35, col: [1, 1, 1] },
+  board: { tex: 'board', h: 1.9, col: [0.62, 0.5, 0.4] }, picket_blue: { tex: 'picket', h: 1.15, col: [0.35, 0.5, 0.85] },
+  metal_green: { tex: 'metal', h: 1.8, col: [0.25, 0.55, 0.35] }, metal_blue: { tex: 'metal', h: 1.8, col: [0.25, 0.4, 0.75] }, metal_brown: { tex: 'metal', h: 1.8, col: [0.55, 0.38, 0.28] }, metal_red: { tex: 'metal', h: 1.8, col: [0.68, 0.25, 0.22] }, metal_grey: { tex: 'metal', h: 1.9, col: [0.62, 0.64, 0.67] },
+  mesh: { tex: 'mesh', h: 1.35, col: [1, 1, 1] },
 };
 
 export function buildFences(world, layout, group) {
@@ -172,4 +174,44 @@ export function buildBusStops(world, nav, group) {
   const m2 = new THREE.Mesh(glass.build(), new THREE.MeshStandardMaterial({ color: 0xa8c8d8, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.1, vertexColors: true, depthWrite: false, side: THREE.DoubleSide })); m2.renderOrder = 2; group.add(m2);
   const tex = makeSignTexture([{ text: 'АВТОБУС', size: 78 }, { text: 'зупинка', size: 52 }], '#1b5fb4', '#ffffff', true, 512, 256);
   const m3 = new THREE.Mesh(plate.build(), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, vertexColors: true, side: THREE.DoubleSide })); m3.castShadow = true; group.add(m3);
+}
+
+// ---- yard gates: two pillars (brick / stone / timber) + double leaves (profiled metal or planks), open or closed
+import { GATE_COLORS } from './layout.js';
+export function buildGates(world, layout, group) {
+  const builders = new Map(); const CH = 400; let tris = 0;
+  const PIL = { brick: [0.62, 0.34, 0.27], stone: [0.7, 0.68, 0.64], wood: [0.4, 0.3, 0.22] };
+  for (const g of layout.gateObjs || []) {
+    const key = `${Math.floor(g.x / CH)},${Math.floor(g.z / CH)}`;
+    let gb = builders.get(key); if (!gb) { gb = new GeoBuilder(); builders.set(key, gb); }
+    // local frame: u along the fence (tx,tz), v away from the road (nx,nz)
+    const base = (u, v) => [g.x + g.tx * u + g.nx * v, g.z + g.tz * u + g.nz * v];
+    const tfOf = (u0, v0, ang) => { const ca = Math.cos(ang), sa = Math.sin(ang); return (x, y, z) => { const rx = x * ca - z * sa, rz = x * sa + z * ca; const p = base(u0 + rx, v0 + rz); return [p[0], y, p[1]]; }; };
+    const pc = PIL[g.pil] || PIL.brick, lc = GATE_COLORS[g.col] || GATE_COLORS.green;
+    const h0 = world.heightAt(g.x, g.z);
+    for (const sg of [-1, 1]) {
+      const t = tfOf(sg * 1.7, 0, 0), hp = world.heightAt(...base(sg * 1.7, 0));
+      gb.box(t, -0.22, hp - 0.3, -0.22, 0.22, hp + 1.95, 0.22, 1, pc);
+      gb.box(t, -0.29, hp + 1.95, -0.29, 0.29, hp + 2.05, 0.29, 1, [pc[0] * 0.75, pc[1] * 0.75, pc[2] * 0.75]);
+    }
+    // leaves: hinged at the pillars, 1.45 m each; open = swung into the yard (+v)
+    for (const sg of [-1, 1]) {
+      const hingeU = sg * 1.48, dirU = -sg;                                   // the leaf points from the hinge toward the gate centre
+      const th = g.open ? (dirU > 0 ? g.ang : Math.PI - g.ang) : (dirU > 0 ? 0 : Math.PI);
+      const ca = Math.cos(th), sa = Math.sin(th);
+      const t = (x, y, z) => { const p = base(hingeU + x * ca - z * sa, x * sa + z * ca); return [p[0], y, p[1]]; };
+      const hp = h0 + 0.12;
+      if (g.kind === 'metal') {
+        gb.box(t, 0, hp + 0.12, -0.03, 1.42, hp + 1.65, 0.03, 1, lc);
+        gb.box(t, 0, hp + 0.08, -0.05, 1.42, hp + 0.2, 0.05, 1, [lc[0] * 0.7, lc[1] * 0.7, lc[2] * 0.7]);
+        gb.box(t, 0, hp + 1.58, -0.05, 1.42, hp + 1.7, 0.05, 1, [lc[0] * 0.7, lc[1] * 0.7, lc[2] * 0.7]);
+      } else {
+        for (let k = 0; k < 6; k++) gb.box(t, k * 0.24 + 0.01, hp + 0.1, -0.025, k * 0.24 + 0.23, hp + 1.45 + (k % 2) * 0.05, 0.025, 1, [0.62 + 0.04 * (k % 3), 0.5 + 0.03 * (k % 2), 0.36]);
+        gb.box(t, 0, hp + 0.3, 0.025, 1.42, hp + 0.4, 0.07, 1, [0.5, 0.38, 0.28]); gb.box(t, 0, hp + 1.1, 0.025, 1.42, hp + 1.2, 0.07, 1, [0.5, 0.38, 0.28]);
+      }
+    }
+  }
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.1 });
+  for (const gb of builders.values()) { if (gb.empty) continue; const m = new THREE.Mesh(gb.build(), mat); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; group.add(m); tris += gb.i.length / 3; }
+  return tris;
 }

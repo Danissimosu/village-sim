@@ -84,7 +84,7 @@ export function addBuilding(S, world, b) {
   const ruv = UV[roofMat] || 1.6;
   const mid = tf(0, y0 + 1, 0);
   const W = S.get(b.x, b.z, wallMat);
-  const plinthCol = mulc([0.62, 0.6, 0.58], wallMat === 'brick' ? [1.2, 1.2, 1.2] : [1, 1, 1]);
+  const plinthCol = st.plinth && kind === 'house' ? mul(st.plinth, 1 / (BOOST[wallMat] || 1)) : mulc([0.62, 0.6, 0.58], wallMat === 'brick' ? [1.2, 1.2, 1.2] : [1, 1, 1]);
 
   // ---- walls (plinth + upper part)
   const wallDefs = [
@@ -145,12 +145,17 @@ export function addBuilding(S, world, b) {
   }
 
   // ---- openings
+  const Paint = S.get(b.x, b.z, 'paint');
   const Win = S.get(b.x, b.z, 'win'), WinL = S.get(b.x, b.z, 'winLit'), Wood = S.get(b.x, b.z, 'wood');
   const night = (kind === 'house' || kind === 'kiosk') ? 0.38 : 0.1;
   const addWin = (w, a, yc, ww = 1.05, wh = 1.35) => {
     const B = rng() < night ? WinL : Win;
     const off = 0.02;
     B.quad(wp(w, a - ww / 2, yc - wh / 2, off), wp(w, a + ww / 2, yc - wh / 2, off), wp(w, a + ww / 2, yc + wh / 2, off), wp(w, a - ww / 2, yc + wh / 2, off), [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1], mid);
+    if (st.trim && kind === 'house' && !civic) { // painted window surround (наличник)
+      const t = 0.1, o2 = 0.012;
+      Paint.quad(wp(w, a - ww / 2 - t, yc - wh / 2 - t, o2), wp(w, a + ww / 2 + t, yc - wh / 2 - t, o2), wp(w, a + ww / 2 + t, yc + wh / 2 + t + 0.04, o2), wp(w, a - ww / 2 - t, yc + wh / 2 + t + 0.04, o2), [[0, 0], [1, 0], [1, 1], [0, 1]], st.trim, mid);
+    }
   };
   const shutterCol = mul(st.shutter || [0.3, 0.4, 0.5], 0.9 + rng() * 0.2);
   const addShutters = (w, a, yc, ww = 1.05, wh = 1.35) => {
@@ -162,7 +167,6 @@ export function addBuilding(S, world, b) {
   };
   const doorCol = mul(shutterCol, 0.8);
   let doorInfo = null;
-  const Paint = S.get(b.x, b.z, 'paint');
   const doorA0 = b.door ? (b.door[0] - b.x) * c + (b.door[1] - b.z) * s : 0;
   const civicFront = (w) => {
     const half = w.len / 2, dA = clamp(doorA0, -half + (civic === 'school' ? 3.2 : 2.6), half - (civic === 'school' ? 3.2 : 2.6));
@@ -239,10 +243,27 @@ export function addBuilding(S, world, b) {
         const tfs = (x, y, z) => wp(w, a + x, y, z);
         S.get(b.x, b.z, 'wood'); // ensure builder exists
         S.get(b.x, b.z, 'plaster').box((x, y, z) => tfs(x, y, z - 0.0 + 0), -bw / 2, by, 0.02, bw / 2, topY, bd, 2, [0.62, 0.6, 0.58]);
-        // canopy over the door
-        const cw = 2.1, cdp = 1.35;
-        R.quad(wp(w, a - cw / 2, y0 + 2.7, 0.0), wp(w, a + cw / 2, y0 + 2.7, 0.0), wp(w, a + cw / 2, y0 + 2.35, cdp), wp(w, a - cw / 2, y0 + 2.35, cdp), [[0, 0], [cw / ruv, 0], [cw / ruv, cdp / ruv], [0, cdp / ruv]], roofCol, tf(0, y0 + 2.5, 0));
-        for (const sg of [-1, 1]) Wood.box((x, y, z) => tfs(x, y, z), sg * (cw / 2 - 0.12) - 0.05, y0, cdp - 0.15, sg * (cw / 2 - 0.12) + 0.05, y0 + 2.4, cdp - 0.05, 1.6, mul(shutterCol, 1.0));
+        const porch = kind === 'house' && !civic ? st.porch : 'canopy';
+        if (porch === 'veranda') { // glazed enclosed porch (веранда) with a lean-to roof
+          const vw = 2.6, vd = 1.7, vh = 2.4, pc = [Math.min(1, wallCol[0] * 1.3), Math.min(1, wallCol[1] * 1.3), Math.min(1, wallCol[2] * 1.3)];
+          const trimC = st.trim || [0.95, 0.95, 0.95];
+          const T = (x, y, z) => tfs(x, y, z), inP = T(0, y0 + 1.2, vd / 2);
+          Paint.box(T, -vw / 2, y0 - 0.1, vd - 0.1, -0.5, y0 + 0.85, vd, 1.5, pc); Paint.box(T, 0.5, y0 - 0.1, vd - 0.1, vw / 2, y0 + 0.85, vd, 1.5, pc);       // knee walls (front, door gap in the middle)
+          Paint.box(T, -vw / 2, y0 - 0.1, 0.0, -vw / 2 + 0.1, y0 + 0.85, vd, 1.5, pc); Paint.box(T, vw / 2 - 0.1, y0 - 0.1, 0.0, vw / 2, y0 + 0.85, vd, 1.5, pc);
+          for (const sx of [-vw / 2, -0.5, 0.5, vw / 2 - 0.08]) Paint.box(T, sx, y0 + 0.85, vd - 0.08, sx + 0.08, y0 + vh, vd, 1.5, trimC);
+          Paint.box(T, -vw / 2, y0 + vh - 0.1, vd - 0.08, vw / 2, y0 + vh, vd, 1.5, trimC);
+          for (const sg of [-1, 1]) { const x = sg * (vw / 2 - 0.12); Win.quad(T(x, y0 + 0.85, 0.05), T(x, y0 + 0.85, vd - 0.1), T(x, y0 + vh - 0.1, vd - 0.1), T(x, y0 + vh - 0.1, 0.05), [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1], inP); }
+          for (const [x0, x1] of [[-vw / 2 + 0.08, -0.5], [0.5, vw / 2 - 0.08]]) Win.quad(T(x0, y0 + 0.85, vd - 0.02), T(x1, y0 + 0.85, vd - 0.02), T(x1, y0 + vh - 0.1, vd - 0.02), T(x0, y0 + vh - 0.1, vd - 0.02), [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1], inP);
+          R.quad(T(-vw / 2 - 0.15, y0 + vh + 0.25, -0.05), T(vw / 2 + 0.15, y0 + vh + 0.25, -0.05), T(vw / 2 + 0.15, y0 + vh - 0.05, vd + 0.2), T(-vw / 2 - 0.15, y0 + vh - 0.05, vd + 0.2), [[0, 0], [vw / ruv, 0], [vw / ruv, vd / ruv], [0, vd / ruv]], roofCol, tf(0, y0 + 1, 0));
+        } else {
+          // canopy over the door (columns = wider porch with painted posts)
+          const big = porch === 'columns';
+          const cw = big ? 3.1 : 2.1, cdp = big ? 1.9 : 1.35;
+          R.quad(wp(w, a - cw / 2, y0 + 2.7, 0.0), wp(w, a + cw / 2, y0 + 2.7, 0.0), wp(w, a + cw / 2, y0 + 2.35, cdp), wp(w, a - cw / 2, y0 + 2.35, cdp), [[0, 0], [cw / ruv, 0], [cw / ruv, cdp / ruv], [0, cdp / ruv]], roofCol, tf(0, y0 + 1, 0));
+          const postCol = big ? (st.trim || [0.95, 0.95, 0.95]) : mul(shutterCol, 1.0), pw2 = big ? 0.08 : 0.05;
+          for (const sg of [-1, 1]) Wood.box((x, y, z) => tfs(x, y, z), sg * (cw / 2 - 0.12) - pw2, y0, cdp - 0.15, sg * (cw / 2 - 0.12) + pw2, y0 + 2.4, cdp - 0.15 + pw2 * 2, 1.6, postCol);
+          if (big) { const T = (x, y, z) => tfs(x, y, z); S.get(b.x, b.z, 'plaster').box(T, -cw / 2, y0 - 0.1, 0.0, cw / 2, y0 + 0.12, cdp + 0.1, 2, [0.6, 0.58, 0.56]); }
+        }
       }
     }
     // attic windows in gables
@@ -278,6 +299,17 @@ export function addBuilding(S, world, b) {
     const Br = S.get(b.x, b.z, 'brick');
     Br.box(tf, cxl - 0.32, yt - 0.2, czl - 0.32, cxl + 0.32, top, czl + 0.32, 1.2, [0.85, 0.62, 0.52], true);
     Br.box(tf, cxl - 0.4, top, czl - 0.4, cxl + 0.4, top + 0.14, czl + 0.4, 1.2, [0.45, 0.45, 0.47], true);
+  }
+  if (kind === 'house' && !civic && st.annex) { // side annex (прибудова): lean-to with its own window
+    const sg = st.annex > 0 ? 1 : -1, aw = 2.4 + (st.seed % 7) * 0.12, ad = Math.min(3.6, b.d * 0.75), zc = -(b.d / 2 - ad / 2) * 0.35;
+    const x0 = sg * hw, x1 = sg * (hw + aw), hA = y0 + 2.1, hT = y0 + 2.45, z0 = zc - ad / 2, z1 = zc + ad / 2, ins = tf(sg * (hw + aw / 2), y0 + 1, zc);
+    const uvq = (a, bq, y1, y2) => [[a / uvw, y1 / uvw], [bq / uvw, y1 / uvw], [bq / uvw, y2 / uvw], [a / uvw, y2 / uvw]];
+    W.quad(tf(x1, yb, z0), tf(x1, yb, z1), tf(x1, hA, z1), tf(x1, hA, z0), uvq(z0, z1, yb, hA), wallCol, ins);
+    for (const zz of [z0, z1]) W.quad(tf(x0, yb, zz), tf(x1, yb, zz), tf(x1, hA, zz), tf(x0, hT, zz), uvq(Math.min(x0, x1), Math.max(x0, x1), yb, hT), wallCol, ins);
+    const rq = [tf(x0, hT + 0.03, z0 - 0.2), tf(x0, hT + 0.03, z1 + 0.2), tf(sg * (hw + aw + 0.25), hA + 0.06, z1 + 0.2), tf(sg * (hw + aw + 0.25), hA + 0.06, z0 - 0.2)];
+    R.quad(rq[0], rq[1], rq[2], rq[3], [[0, 0], [ad / ruv, 0], [ad / ruv, aw / ruv], [0, aw / ruv]], roofCol, ins);
+    const xw = sg * (hw + aw + 0.02);
+    Win.quad(tf(xw, y0 + 0.85, zc - 0.55), tf(xw, y0 + 0.85, zc + 0.55), tf(xw, y0 + 1.85, zc + 0.55), tf(xw, y0 + 1.85, zc - 0.55), [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1], ins);
   }
   if (kind === 'industrial') { // roof vent boxes
     S.get(b.x, b.z, 'roofSlate').box(tf, -2, ridgeY - 0.1, -0.8, 2, ridgeY + 0.5, 0.8, 1.5, [0.5, 0.52, 0.55]);

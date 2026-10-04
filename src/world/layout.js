@@ -10,10 +10,38 @@ const ROOF_STYLES = [
   { mat: 'roofRed', tint: [0.95, 0.75, 0.7] }, { mat: 'roofClay', tint: [1, 0.9, 0.85] }, { mat: 'roofSlate', tint: [0.42, 0.5, 0.65] }, { mat: 'roofRed', tint: [0.7, 0.62, 0.6] },
 ];
 
+// ---- Ukrainian village house types (хата / цегляний / дерев'яний / з металочерепицею / сучасний), derived from the style seed
+const PL = { blue: [0.22, 0.38, 0.72], green: [0.2, 0.5, 0.32], brown: [0.45, 0.28, 0.2], ochre: [0.75, 0.55, 0.25], grey: [0.55, 0.55, 0.56], red: [0.62, 0.2, 0.18] };
+const METAL = { green: [0.3, 0.58, 0.36], red: [0.66, 0.26, 0.22], brown: [0.5, 0.33, 0.25], blue: [0.28, 0.4, 0.68], grey: [0.55, 0.57, 0.6] };
+export const GATE_COLORS = { green: [0.22, 0.5, 0.3], blue: [0.22, 0.38, 0.72], brown: [0.45, 0.3, 0.2], red: [0.6, 0.2, 0.18], grey: [0.5, 0.52, 0.55] };
+export function decorateStyle(st, modern) {
+  const r = mulberry32((st.seed ^ 0x5bd1e995) >>> 0), pk = (a) => a[Math.floor(r() * a.length)];
+  const u = r();
+  st.paintName = pk(['green', 'blue', 'brown', 'red', 'grey']);
+  if (modern) { st.type = 'modern'; st.trim = pk([[0.95, 0.95, 0.95], [0.3, 0.3, 0.33]]); st.plinth = pk([PL.grey, [0.4, 0.4, 0.42]]); st.porch = r() < 0.55 ? 'columns' : 'none'; st.annex = 0; return st; }
+  if (st.wall === 'brick') { st.type = 'brick'; st.trim = [0.96, 0.95, 0.92]; st.plinth = null; st.porch = pk(['veranda', 'canopy', 'columns', 'canopy', 'none']); st.annex = r() < 0.25 ? (r() < 0.5 ? 1 : -1) : 0; return st; }
+  if (u < 0.1) { // log / timber house
+    st.type = 'wood'; st.wall = 'wood'; st.wallTint = [1, 1, 1]; st.roof = pk(['roofSlate', 'roofRed']); st.roofTint = st.roof === 'roofRed' ? [0.85, 0.65, 0.6] : pk([METAL.grey, METAL.green, METAL.brown]);
+    st.trim = pk([[0.95, 0.95, 0.92], PL.blue, PL.green]); st.plinth = null; st.porch = pk(['columns', 'canopy', 'veranda']); st.annex = r() < 0.2 ? 1 : 0; st.hip = r() < 0.15; return st;
+  }
+  if (u < 0.5) { // хата: whitewashed walls, coloured plinth, blue/green trim
+    st.type = 'khata'; st.wallTint = pk([[1, 1, 1], [1, 1, 1], [1, 0.97, 0.86], [0.85, 0.92, 1], [1, 0.95, 0.72], [0.9, 0.95, 0.85]]);
+    st.plinth = pk([PL.blue, PL.green, PL.brown, PL.ochre, PL.blue]); st.trim = pk([PL.blue, PL.green, [0.95, 0.95, 0.95], PL.brown]);
+    st.roof = pk(['roofSlate', 'roofSlate', 'roofClay', 'roofRed']); st.roofTint = st.roof === 'roofSlate' ? pk([[0.45, 0.47, 0.5], METAL.green, METAL.brown, [0.35, 0.37, 0.4]]) : st.roof === 'roofClay' ? [1, 0.9, 0.85] : [0.85, 0.7, 0.65];
+    st.shutters = r() < 0.7; st.shutter = st.trim; st.porch = pk(['none', 'canopy', 'veranda', 'canopy']); st.annex = r() < 0.3 ? (r() < 0.5 ? 1 : -1) : 0; return st;
+  }
+  // painted stucco + metal-tile roof
+  st.type = 'sheet'; st.wallTint = pk([[1, 0.82, 0.55], [0.75, 0.88, 0.72], [0.74, 0.86, 0.98], [0.98, 0.78, 0.7], [0.92, 0.9, 0.82], [0.95, 0.9, 0.5], [0.8, 0.78, 0.9]]);
+  st.roof = 'roofSlate'; st.roofTint = pk([METAL.green, METAL.red, METAL.brown, METAL.blue, METAL.grey, METAL.brown]);
+  st.trim = pk([[0.96, 0.96, 0.96], [0.96, 0.96, 0.96], PL.brown, PL.blue]); st.plinth = pk([PL.grey, PL.brown, PL.grey, null]);
+  st.porch = pk(['columns', 'veranda', 'canopy', 'none', 'columns']); st.annex = r() < 0.25 ? (r() < 0.5 ? 1 : -1) : 0; st.hip = st.hip || r() < 0.3;
+  return st;
+}
+
 export function generateLayout(world, seed = 20240611) {
   const rng = mulberry32(seed);
   const J = world.json;
-  const L = { buildings: [], wells: [], fences: [], gardens: [], paths: [], trees: [], poles: [], cables: [], signs: [], mast: null, roadSegs: [], stats: {} };
+  const L = { gateObjs: [], gates: [], buildings: [], wells: [], fences: [], gardens: [], paths: [], trees: [], poles: [], cables: [], signs: [], mast: null, roadSegs: [], stats: {} };
   const LIM = 640;
 
   // ---- road segment list
@@ -57,9 +85,11 @@ export function generateLayout(world, seed = 20240611) {
   const inRect = (x, z, b, m = 0) => { const c = Math.cos(b.rot), s = Math.sin(b.rot); const dx = x - b.x, dz = z - b.z; const u = dx * c + dz * s, v = -dx * s + dz * c; return Math.abs(u) <= b.w / 2 + m && Math.abs(v) <= b.d / 2 + m; };
 
   const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+  const pick2 = (r, arr) => arr[Math.floor(r() * arr.length)];
   const mkStyle = (modern, brick) => {
     const roof = modern ? { mat: 'roofSlate', tint: pick([[0.35, 0.33, 0.33], [0.5, 0.25, 0.2], [0.3, 0.34, 0.4]]) } : pick(ROOF_STYLES);
-    return { wall: brick ? 'brick' : 'plaster', wallTint: modern ? pick([[0.95, 0.95, 0.92], [0.85, 0.83, 0.78], [0.7, 0.72, 0.75]]) : pick(WALL_TINTS), roof: roof.mat, roofTint: roof.tint, shutter: pick([[0.2, 0.45, 0.3], [0.25, 0.35, 0.6], [0.45, 0.25, 0.15], [0.9, 0.9, 0.9], [0.6, 0.15, 0.15]]), hip: rng() < (modern ? 0.7 : 0.35), pitch: 28 + rng() * 12, shutters: rng() < 0.55, chimney: rng() < 0.8, seed: Math.floor(rng() * 1e9) };
+    const st = { wall: brick ? 'brick' : 'plaster', wallTint: modern ? pick([[0.95, 0.95, 0.92], [0.85, 0.83, 0.78], [0.7, 0.72, 0.75]]) : pick(WALL_TINTS), roof: roof.mat, roofTint: roof.tint, shutter: pick([[0.2, 0.45, 0.3], [0.25, 0.35, 0.6], [0.45, 0.25, 0.15], [0.9, 0.9, 0.9], [0.6, 0.15, 0.15]]), hip: rng() < (modern ? 0.7 : 0.35), pitch: 28 + rng() * 12, shutters: rng() < 0.55, chimney: rng() < 0.8, seed: Math.floor(rng() * 1e9) };
+    return decorateStyle(st, modern);       // extra variety uses its own seeded RNG (the layout RNG sequence is untouched)
   };
   const addBuilding = (b) => {
     L.buildings.push(b);
@@ -152,7 +182,14 @@ export function generateLayout(world, seed = 20240611) {
   for (const p of plots) {
     const { house: h, s, nx, nz, hw, plotW, modern } = p;
     const tx = s.dx, tz = s.dz; // along the road
-    const fkind = modern ? 'board' : pick(FENCE_KINDS);
+    const fkind0 = modern ? 'board' : pick(FENCE_KINDS);
+    const gr = mulberry32((h.style.seed ^ 0x27d4eb2f) >>> 0), g01 = () => gr();
+    let fkind = fkind0;
+    if (!modern && h.style.type) {      // fence & gate follow the house type
+      const t = g01(), pn = h.style.paintName;
+      if (t < 0.34) fkind = 'metal_' + (pn === 'grey' ? 'green' : pn);
+      else if (t < 0.5 && h.style.type === 'khata') fkind = 'picket_blue';
+    } else if (modern && g01() < 0.4) fkind = 'metal_grey';
     const frontDist = hw + 1.4;
     const depth = 34 + rng() * 10;
     const P = (along, out) => [s.x + nx * out + tx * along, s.z + nz * out + tz * along];
@@ -160,6 +197,12 @@ export function generateLayout(world, seed = 20240611) {
     // front fence with gate gap
     const gate = (rng() - 0.5) * hwid * 0.8;
     const f = L.fences;
+    { // gate between two pillars; leaves are open (villagers & player walk through) or closed (blocks the player only)
+      const gc = fkind.startsWith('metal_') ? fkind.slice(6) : pick2(gr, ['green', 'blue', 'brown', 'red', 'grey']);
+      const gk = g01() < 0.58 ? 'metal' : 'wood', open = g01() < 0.55, pil = pick2(gr, ['brick', 'stone', 'wood', 'brick']);
+      const gp = P(gate, frontDist);
+      if (g01() < 0.85) { L.gateObjs.push({ x: gp[0], z: gp[1], tx, tz, nx, nz, kind: gk, col: gc, open, pil, ang: 0.9 + g01() * 0.5 }); if (!open) L.gates.push({ pts: [P(gate - 1.5, frontDist), P(gate + 1.5, frontDist)] }); }
+    }
     fencePieces(P(-hwid, frontDist), P(gate - 1.6, frontDist), fkind, f);
     fencePieces(P(gate + 1.6, frontDist), P(hwid, frontDist), fkind, f);
     fencePieces(P(-hwid, frontDist), P(-hwid, frontDist + depth), fkind, f);

@@ -9,7 +9,7 @@ import { buildRasters } from './world/splat.js';
 import { loadMaterials, setAnisotropy } from './world/materials.js';
 import { buildTerrain } from './world/terrain.js';
 import { BuildingSet, addBuilding, addWell, makeExtraMaterials } from './world/buildings.js';
-import { buildFences, buildPoles, buildMast, buildRoadMarkings, buildSigns, buildBusStops } from './world/props.js';
+import { buildFences, buildPoles, buildMast, buildRoadMarkings, buildSigns, buildBusStops, buildGates } from './world/props.js';
 import { Trees, Grass, planTrees } from './world/vegetation.js';
 import { Sky } from './world/sky.js';
 import { Waters } from './world/water.js';
@@ -99,7 +99,7 @@ async function boot() {
   const fenceTris = buildFences(world, layout, props);
   const heroPoi = buildHeroPlot(scene, world, layout, materials, extra);
   const heroPoi84 = buildHero84(scene, world, layout, materials, extra);
-  buildPoles(world, layout, props); buildMast(world, layout, props); buildRoadMarkings(world, props); buildBusStops(world, nav, props);
+  buildPoles(world, layout, props); buildMast(world, layout, props); buildRoadMarkings(world, props); buildBusStops(world, nav, props); buildGates(world, layout, props);
   await tick();
 
   // ---- spawn: residential road point nearest the centre with several houses around

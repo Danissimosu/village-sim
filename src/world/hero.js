@@ -82,6 +82,8 @@ export function makePlotFrame(world, layout, cfg) {
   layout.buildings = layout.buildings.filter((b) => !dead.has(b));
   layout.paths = layout.paths.filter((p) => !deadDoors.has(p[0]) && !p.some((q) => inRect(q[0], q[1], 0.5)));
   layout.gardens = layout.gardens.filter((g) => !inRect(g.cx, g.cz, 2));
+  layout.gateObjs = (layout.gateObjs || []).filter((g) => !inRect(g.x, g.z, 2.5));
+  layout.gates = (layout.gates || []).filter((g) => !g.pts.some((q) => inRect(q[0], q[1], 2.5)));
   layout.trees = layout.trees.filter((t) => !inRect(t.x, t.z, 2.5));
   layout.wells = layout.wells.filter((w) => !inRect(w.x, w.z, 2));
   const nf = [];
