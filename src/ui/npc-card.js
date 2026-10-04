@@ -6,16 +6,18 @@ export function createNpcCard() {
   const root = document.getElementById('hud');
   const card = document.createElement('div'); card.id = 'npc-card'; card.style.display = 'none';
   card.innerHTML = `<button class="x" aria-label="Закрыть">×</button><div class="nm" id="npc-nm"></div><div class="sub" id="npc-sub"></div>
-    <div class="r"><span>Сейчас</span><b id="npc-now"></b></div><div class="r"><span>Дом</span><b id="npc-home"></b></div><div class="r"><span>Семья</span><b id="npc-fam"></b></div>`;
+    <div class="r"><span>Сейчас</span><b id="npc-now"></b></div><div class="r"><span>Дом</span><b id="npc-home"></b></div><div class="r"><span>Семья</span><b id="npc-fam"></b></div><button id="npc-talk" class="talk">💬 Поговорить</button>`;
   const mark = document.createElement('div'); mark.id = 'npc-mark'; mark.style.display = 'none'; mark.textContent = '▼';
   root.appendChild(card); root.appendChild(mark);
   const stop = (e) => e.stopPropagation();
   ['pointerdown', 'pointermove', 'pointerup', 'touchstart', 'mousedown', 'click'].forEach((ev) => card.addEventListener(ev, stop));
   const $ = (id) => card.querySelector('#' + id);
-  let onClose = null; card.querySelector('.x').addEventListener('click', () => { api.hide(); onClose && onClose(); });
+  let onClose = null, onTalk = null; card.querySelector('#npc-talk').addEventListener('click', () => onTalk && onTalk());
+  card.querySelector('.x').addEventListener('click', () => { api.hide(); onClose && onClose(); });
   const api = {
     visible: false,
     onClose(fn) { onClose = fn; },
+    onTalk(fn) { onTalk = fn; },
     show(a, sim) {
       const r = a.res; this.visible = true; card.style.display = 'block';
       $('npc-nm').textContent = `${r.first} ${r.last}`;

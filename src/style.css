@@ -45,3 +45,30 @@ body.menu-hidden #npc-card { bottom: calc(env(safe-area-inset-bottom, 0px) + 14p
 
 .btn.poi { background: rgba(150, 28, 34, 0.62); border-color: rgba(255,255,255,0.35); }
 .btn.poi84 { background: rgba(150, 62, 38, 0.62); }
+
+/* ---- gameplay layer */
+#gbar { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 112px); left: calc(env(safe-area-inset-left, 0px) + 10px); padding: 5px 10px; background: var(--glass); border: 1px solid var(--line); border-radius: 12px; font-size: 13px; font-weight: 700; display: flex; gap: 10px; align-items: center; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); max-width: min(250px, 60vw); flex-wrap: wrap; }
+#act-btn { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 52px); transform: translateX(-50%); font: inherit; font-size: 15px; font-weight: 700; color: #fff; background: rgba(201, 105, 43, 0.92); border: 2px solid rgba(255,255,255,0.5); border-radius: 999px; padding: 12px 22px; z-index: 6; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+#act-btn:active { transform: translateX(-50%) scale(0.96); }
+#toast { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 70px); transform: translateX(-50%); background: rgba(14, 22, 34, 0.85); padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.4s; pointer-events: none !important; z-index: 8; white-space: nowrap; }
+#dlg, #gpanel { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); transform: translateX(-50%); width: min(380px, calc(100vw - 20px)); max-height: 70vh; overflow: auto; padding: 12px 14px 12px; background: rgba(14, 22, 34, 0.86); border: 1px solid var(--line); border-radius: 16px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-size: 14px; z-index: 9; }
+#gpanel { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 60px); }
+#dlg .nm { font-size: 17px; font-weight: 700; padding-right: 26px; }
+#dlg .sub { opacity: 0.7; font-size: 12px; margin: 1px 0 8px; }
+#dlg .tx { line-height: 1.4; margin-bottom: 10px; }
+#dlg .ch { display: flex; flex-direction: column; gap: 6px; }
+#dlg .ch button, #gpanel .btn { font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: rgba(255,255,255,0.14); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; text-align: left; }
+#dlg .ch button:disabled { opacity: 0.4; }
+#dlg .x, #gpanel .x { position: absolute; top: 4px; right: 6px; width: 34px; height: 34px; font-size: 24px; line-height: 1; color: #fff; background: none; border: 0; opacity: 0.7; }
+#gpanel .tabs { display: flex; gap: 6px; margin-bottom: 8px; padding-right: 30px; }
+#gpanel .tabs button { font: inherit; font-size: 13px; font-weight: 600; color: #fff; background: rgba(255,255,255,0.1); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; }
+#gpanel .tabs button.on { background: rgba(255, 207, 107, 0.3); }
+#gpanel .r { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+#gpanel .q { padding: 7px 0; border-top: 1px solid rgba(255,255,255,0.08); font-size: 13px; }
+#gpanel .q.done { opacity: 0.55; }
+#gpanel .note { opacity: 0.6; font-size: 12px; margin-top: 8px; }
+#gpanel .btn { display: block; width: 100%; margin-bottom: 8px; }
+.qmark { position: absolute; left: 0; top: 0; font-size: 15px; font-weight: 700; text-shadow: 0 1px 3px #000, 0 0 6px #000; pointer-events: none !important; z-index: 4; white-space: nowrap; }
+body.menu-hidden #btn-bag { display: none; }
+#npc-card .talk { display: block; width: 100%; margin-top: 8px; font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: rgba(201, 105, 43, 0.9); border: 0; border-radius: 10px; padding: 9px; }
+body.menu-hidden #gbar { top: calc(env(safe-area-inset-top, 0px) + 10px); }

@@ -1,0 +1,240 @@
+// Gameplay layer: money, inventory, daily clock bar, talking to villagers (Russian lines), a few small quests, shop, save/load.
+import * as THREE from 'three';
+
+const SAVE_KEY = 'lyubimivka-save-v1';
+const ITEMS = { eggs: ['Яйца', '🥚'], milk: ['Молоко', '🥛'], bread: ['Хлеб', '🍞'], apples: ['Яблоки', '🍎'] };
+const BUY = { bread: 25, milk: 45 }, SELL = { eggs: 8, milk: 35, apples: 5 };
+const SHOP_OPEN = 8, SHOP_CLOSE = 20;
+const plural = (n, a, b, c) => { const m = n % 100, d = n % 10; return m >= 11 && m <= 14 ? c : d === 1 ? a : d >= 2 && d <= 4 ? b : c; };
+const fresh = () => ({ v: 1, money: 40, inv: { eggs: 0, milk: 0, bread: 0, apples: 0 }, q: { bread: 0, eggs: 0, milk: 0, pets: 0, petsN: 0 }, talked: {}, treeDay: {}, day: 0, hour: 10.5, pos: null });
+
+export function createGame(ctx) {
+  const { world, nav, sim, fauna, player, layout, camera, hud, getClock, setClock, getWeather } = ctx;
+  let S = fresh(), dirty = false;
+  const root = document.getElementById('hud');
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- load
+  let loaded = false;
+  try { const raw = localStorage.getItem(SAVE_KEY); if (raw) { const o = JSON.parse(raw); if (o && o.v === 1) { S = { ...fresh(), ...o, inv: { ...fresh().inv, ...o.inv }, q: { ...fresh().q, ...o.q } }; loaded = true; } } } catch (e) { /* private mode etc. */ }
+  const save = () => { try { const c = getClock(); S.hour = c.hour; S.day = c.day; S.pos = { x: player.pos.x, z: player.pos.z, yaw: player.yaw }; localStorage.setItem(SAVE_KEY, JSON.stringify(S)); dirty = false; return true; } catch (e) { return false; } };
+
+  // ---------- quest givers: deterministic villagers who live close to the village centre
+  const centre = nav.centreXZ || { x: 0, z: 0 };
+  const near = sim.actors.filter((a) => a.house && a.house.door).map((a) => ({ a, d: Math.hypot(a.house.x - centre.x, a.house.z - centre.z) })).sort((p, q) => p.d - q.d).map((p) => p.a);
+  const usedHH = new Set();
+  const pickG = (f) => { const a = near.find((x) => !usedHH.has(x.res.household) && f(x)); if (a) usedHH.add(a.res.household); return a; };
+  const giver = {
+    bread: pickG((a) => a.res.job === 'retired' && a.res.female),
+    eggs: pickG((a) => a.res.female && a.res.age >= 35 && a.res.job !== 'retired' && a.res.job !== 'shop' && a.res.job !== 'teacher'),
+    milk: pickG((a) => !a.res.female && a.res.age >= 50),
+  };
+  const fullName = (a) => `${a.res.first} ${a.res.last}`;
+  const shopDoor = (from) => { let best = null, bd = 1e9; for (const s of nav.shops) { const d = Math.hypot(s.door.x - from.x, s.door.z - from.z); if (d < bd) { bd = d; best = s; } } return best; };
+
+  // ---------- UI
+  const bar = document.createElement('div'); bar.id = 'gbar';
+  bar.innerHTML = '<span id="g-money">💰 40 ₴</span><span id="g-inv"></span>';
+  root.appendChild(bar);
+  const btn = document.createElement('button'); btn.className = 'btn'; btn.id = 'btn-bag'; btn.textContent = '🎒 Рюкзак и дела';
+  $('btns').insertBefore(btn, $('btn-hide'));
+  const act = document.createElement('button'); act.id = 'act-btn'; act.style.display = 'none'; root.appendChild(act);
+  const toastEl = document.createElement('div'); toastEl.id = 'toast'; root.appendChild(toastEl);
+  const dlg = document.createElement('div'); dlg.id = 'dlg'; dlg.style.display = 'none';
+  dlg.innerHTML = '<button class="x" aria-label="Закрыть">×</button><div class="nm" id="dlg-nm"></div><div class="sub" id="dlg-sub"></div><div class="tx" id="dlg-tx"></div><div class="ch" id="dlg-ch"></div>';
+  root.appendChild(dlg);
+  const panel = document.createElement('div'); panel.id = 'gpanel'; panel.style.display = 'none';
+  panel.innerHTML = '<button class="x" aria-label="Закрыть">×</button><div class="tabs"><button data-t="inv" class="on">Рюкзак</button><button data-t="q">Дела</button><button data-t="sys">Игра</button></div><div id="gp-body"></div>';
+  root.appendChild(panel);
+  const marks = [0, 1].map(() => { const m = document.createElement('div'); m.className = 'qmark'; m.style.display = 'none'; root.appendChild(m); return m; });
+  for (const el of [bar, btn, act, dlg, panel]) ['pointerdown', 'pointermove', 'pointerup', 'touchstart', 'mousedown', 'click'].forEach((ev) => el.addEventListener(ev, (e) => e.stopPropagation()));
+
+  let toastT = 0;
+  const toast = (t) => { toastEl.textContent = t; toastEl.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => { toastEl.style.opacity = 0; }, 2600); };
+  const refreshBar = () => {
+    $('g-money').textContent = `💰 ${S.money} ₴`;
+    $('g-inv').textContent = Object.keys(ITEMS).filter((k) => S.inv[k] > 0).map((k) => `${ITEMS[k][1]}${S.inv[k]}`).join(' ');
+  };
+  const addItem = (k, n) => { S.inv[k] = Math.max(0, (S.inv[k] || 0) + n); dirty = true; refreshBar(); };
+  const addMoney = (n) => { S.money += n; dirty = true; refreshBar(); };
+
+  // ---------- quests
+  const questList = () => {
+    const out = [];
+    const g = giver;
+    const where = (a) => (a ? `${fullName(a)}${a.res.address ? ' (' + a.res.address + ')' : ''}` : '—');
+    out.push({ title: 'Хлеб для соседки', st: S.q.bread, text: ['Поговорите с ' + where(g.bread), S.inv.bread > 0 ? 'Хлеб куплен — отнесите ' + where(g.bread) : 'Купите хлеб в магазине (25 ₴, с 8 до 20) и отнесите ' + where(g.bread), 'Выполнено ✔'] });
+    out.push({ title: 'Яйца к приезду гостей', st: S.q.eggs, text: ['Поговорите с ' + where(g.eggs), `Соберите 4 яйца у кур во дворах (${Math.min(4, S.inv.eggs)}/4) и отнесите ${where(g.eggs)}`, 'Выполнено ✔'] });
+    out.push({ title: 'Парное молоко', st: S.q.milk, text: ['Поговорите с ' + where(g.milk), 'Подоите корову во дворе и отнесите банку молока ' + where(g.milk), 'Выполнено ✔'] });
+    out.push({ title: 'Друг животных', st: S.q.pets >= 1 ? 2 : 1, text: ['', `Погладьте 3 собак и 3 кошек (${Math.min(3, S.q.petsD || 0)} соб., ${Math.min(3, S.q.petsC || 0)} кош.)`, 'Выполнено ✔'] });
+    return out;
+  };
+  const renderPanel = (tab) => {
+    const body = $('gp-body'); panel.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === tab)); panel.dataset.tab = tab;
+    if (tab === 'inv') {
+      const rows = Object.keys(ITEMS).map((k) => `<div class="r"><span>${ITEMS[k][1]} ${ITEMS[k][0]}</span><b>${S.inv[k]}</b></div>`).join('');
+      body.innerHTML = `<div class="r"><span>💰 Деньги</span><b>${S.money} ₴</b></div>${rows}<div class="note">Яйца — у кур, молоко — у коров, яблоки — с яблонь во дворах. Продавать можно в магазине.</div>`;
+    } else if (tab === 'q') {
+      body.innerHTML = questList().map((q) => `<div class="q ${q.st >= 2 ? 'done' : ''}"><b>${q.title}</b><div>${q.text[Math.min(q.st, 2)] || q.text[1]}</div></div>`).join('');
+    } else {
+      body.innerHTML = '<button class="btn" id="gs-save">💾 Сохранить игру</button><button class="btn" id="gs-new">🗑 Новая игра</button><div class="note">Игра сохраняется автоматически каждые 15 секунд (в браузере этого устройства).</div>';
+      $('gs-save').onclick = () => toast(save() ? 'Сохранено' : 'Не удалось сохранить');
+      $('gs-new').onclick = () => { if (confirm('Начать заново? Деньги, вещи и задания будут сброшены.')) { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } S = fresh(); dirty = false; refreshBar(); toast('Новая игра'); renderPanel('inv'); } };
+    }
+  };
+  let panelOpen = false;
+  const openPanel = (tab = 'inv') => { panelOpen = true; panel.style.display = 'block'; renderPanel(tab); };
+  const closePanel = () => { panelOpen = false; panel.style.display = 'none'; };
+  btn.onclick = () => (panelOpen ? closePanel() : openPanel('inv'));
+  panel.querySelector('.x').onclick = closePanel;
+  panel.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => renderPanel(b.dataset.t); });
+
+  // ---------- dialogue
+  let dlgOpen = false, dlgFor = null;
+  const say = (title, sub, text, choices) => {
+    dlgOpen = true; dlg.style.display = 'block';
+    $('dlg-nm').textContent = title; $('dlg-sub').textContent = sub || ''; $('dlg-tx').textContent = text;
+    const ch = $('dlg-ch'); ch.innerHTML = '';
+    for (const c of choices.concat([{ label: 'Закрыть' }])) { const b = document.createElement('button'); b.textContent = c.label; if (c.off) b.disabled = true; b.onclick = () => { if (c.fn) c.fn(); else closeDlg(); }; ch.appendChild(b); }
+  };
+  const closeDlg = () => { dlgOpen = false; dlg.style.display = 'none'; dlgFor = null; };
+  dlg.querySelector('.x').onclick = closeDlg;
+
+  const hourNow = () => getClock().hour;
+  const part = () => { const h = hourNow(); return h < 5 ? 'night' : h < 11 ? 'morning' : h < 17 ? 'day' : h < 22 ? 'evening' : 'night'; };
+  const hello = { morning: ['Доброе утро!', 'С добрым утром!', 'Утро доброе, сосед!'], day: ['Добрый день!', 'Здравствуйте!', 'Добрый день, сосед!'], evening: ['Добрый вечер!', 'Вечер добрый!'], night: ['Не спится?', 'Поздновато гуляете…'] };
+  const weatherLine = { rain: ['Дождь льёт — для огорода это хорошо.', 'Мокро сегодня, не гуляется.'], fog: ['Туман какой — соседа не видно.', 'Туман с пруда пошёл.'], clear: ['Погода сегодня хорошая.', 'Солнышко — красота.'] };
+  const byJob = {
+    retired: ['Огород сам себя не польёт. Пенсия небольшая, а хозяйство кормит.', 'Раньше в селе людей было больше — и школа полная, и клуб работал.', 'Яблони в этом году хорошо уродили, заходите.'],
+    commute: ['Каждое утро в Киев — пока доеду, полдня прошло.', 'Хорошо, что трасса рядом, а то автобус не дождёшься.'],
+    local: ['Работы в селе хватает, только руки подставляй.', 'То забор подправить, то крышу — хозяйство.'],
+    homemaker: ['Дела по дому — вечные. Куры, огород, внуки…', 'Сейчас закрутки делаю, зима придёт — спасибо скажем.'],
+    school: ['В школе опять контрольная, не хочу!', 'Мы после уроков на пруд ходим.'],
+    kid: ['А у нас в садике новая горка!', 'Я видел большую собаку!'],
+    baby: ['Агу!'],
+    student: ['Приехал на выходные из Киева, у мамы борщ.', 'Сессия скоро, а я тут по селу гуляю.'],
+    shop: ['Хлеб утром привозят, пока свежий — берите.', 'Заходите, у нас и хлеб, и молоко, и конфеты.'],
+    teacher: ['Дети у нас хорошие, только шумные.', 'Школа маленькая, но своя.'],
+    post: ['Пенсию разношу — каждому своё время.', 'Писем почти нет, всё в телефонах.'],
+  };
+  const pickR = (a) => a[Math.floor(Math.random() * a.length)];
+  const smallTalk = (a) => {
+    const r = a.res, w = (getWeather && getWeather()) || 'clear';
+    const lines = [pickR(hello[part()])];
+    lines.push(Math.random() < 0.5 ? pickR(weatherLine[w] || weatherLine.clear) : pickR(byJob[r.job] || byJob.local));
+    if (part() === 'night') lines.push('Идите-ка домой, ночью по селу собаки бегают.');
+    return lines.join(' ');
+  };
+
+  const talkTo = (a) => {
+    dlgFor = a; const r = a.res, name = fullName(a), sub = `${r.occupation}${r.address ? ' · ' + r.address : ''}`;
+    S.talked[r.id] = (S.talked[r.id] || 0) + 1; dirty = true;
+    if (a === giver.bread) return questBread(a, name, sub);
+    if (a === giver.eggs) return questEggs(a, name, sub);
+    if (a === giver.milk) return questMilk(a, name, sub);
+    const open = hourNow() >= SHOP_OPEN && hourNow() < SHOP_CLOSE;
+    say(name, sub, smallTalk(a), [{ label: 'Как дела в селе?', fn: () => say(name, sub, pickR(['Живём потихоньку. Главное — чтобы было тихо.', 'По-разному. Но село у нас красивое, пруды, сады…', open ? 'Магазин открыт, если что нужно — сходите.' : 'Магазин уже закрыт, до восьми утра ждать.']), []) }]);
+  };
+  const questBread = (a, name, sub) => {
+    if (S.q.bread === 0) say(name, sub, 'Ой, внучек, ноги совсем не ходят… Сходишь в магазин за хлебом? Вот тебе тридцать гривен. Булка стоит двадцать пять — сдачу оставь себе.', [{ label: 'Конечно, схожу', fn: () => { S.q.bread = 1; addMoney(30); dirty = true; toast('Задание: купить хлеб'); say(name, sub, 'Вот спасибо! Магазин работает с восьми до восьми.', []); } }]);
+    else if (S.q.bread === 1) {
+      if (S.inv.bread > 0) say(name, sub, 'Хлебушек! Тёплый ещё. Спасибо, родной, вот тебе за труды.', [{ label: 'Отдать хлеб', fn: () => { addItem('bread', -1); addMoney(45); addItem('apples', 3); S.q.bread = 2; toast('Задание выполнено: +45 ₴, +3 яблока'); closeDlg(); } }]);
+      else say(name, sub, 'Ну что, купил хлеб? Магазин ищи по вывеске, он недалеко.', []);
+    } else say(name, sub, pickR(['Спасибо тебе ещё раз за хлеб. ' + smallTalk(a), smallTalk(a)]), []);
+  };
+  const questEggs = (a, name, sub) => {
+    if (S.q.eggs === 0) say(name, sub, 'К вечеру гости приедут, а яиц на пироги не хватает. Принесёшь четыре? У кого-нибудь из соседей куры во дворе ходят. Заплачу шестьдесят.', [{ label: 'Принесу', fn: () => { S.q.eggs = 1; dirty = true; toast('Задание: собрать 4 яйца'); closeDlg(); } }]);
+    else if (S.q.eggs === 1) {
+      if (S.inv.eggs >= 4) say(name, sub, 'Свежие! Вот молодец, держи шестьдесят гривен.', [{ label: 'Отдать 4 яйца', fn: () => { addItem('eggs', -4); addMoney(60); S.q.eggs = 2; toast('Задание выполнено: +60 ₴'); closeDlg(); } }]);
+      else say(name, sub, `Пока яиц ${S.inv.eggs} из 4. Куры обычно возле дворов за домами.`, []);
+    } else say(name, sub, smallTalk(a), []);
+  };
+  const questMilk = (a, name, sub) => {
+    if (S.q.milk === 0) say(name, sub, 'Врач говорит — пить молоко. Только не магазинное, а парное. Подоишь у соседей корову и принесёшь банку? Семьдесят гривен дам.', [{ label: 'Попробую', fn: () => { S.q.milk = 1; dirty = true; toast('Задание: принести парное молоко'); closeDlg(); } }]);
+    else if (S.q.milk === 1) {
+      if (S.inv.milk > 0) say(name, sub, 'Парное! Спасибо, что не забыл.', [{ label: 'Отдать молоко', fn: () => { addItem('milk', -1); addMoney(70); S.q.milk = 2; toast('Задание выполнено: +70 ₴'); closeDlg(); } }]);
+      else say(name, sub, 'Корова — у кого-то во дворе за домом. Подходи к ней и жми на «Подоить».', []);
+    } else say(name, sub, smallTalk(a), []);
+  };
+
+  // ---------- shop
+  const openShop = (shop) => {
+    const h = hourNow(), open = h >= SHOP_OPEN && h < SHOP_CLOSE;
+    if (!open) { say('Магазин', 'Закрыто', 'Магазин работает с 8:00 до 20:00. Приходите утром.', []); return; }
+    const ch = [];
+    for (const k of Object.keys(BUY)) ch.push({ label: `Купить: ${ITEMS[k][1]} ${ITEMS[k][0]} — ${BUY[k]} ₴`, off: S.money < BUY[k], fn: () => { addMoney(-BUY[k]); addItem(k, 1); toast(`Куплено: ${ITEMS[k][0].toLowerCase()}`); openShop(shop); } });
+    for (const k of Object.keys(SELL)) if (S.inv[k] > 0) ch.push({ label: `Продать: ${ITEMS[k][1]} ${ITEMS[k][0]} ×${S.inv[k]} — ${SELL[k] * S.inv[k]} ₴`, fn: () => { addMoney(SELL[k] * S.inv[k]); addItem(k, -S.inv[k]); toast('Продано'); openShop(shop); } });
+    say('Магазин «Любимівка»', `У вас ${S.money} ₴`, 'Здравствуйте! Что желаете?', ch);
+  };
+
+  // ---------- interaction scan
+  let cand = null, lastScan = 0, tStart = performance.now();
+  const apples = layout.trees.filter((t) => t.sp === 'apple');
+  const nearestApple = (px, pz) => { let best = null, bd = 2.8; for (const t of apples) { const d = Math.hypot(t.x - px, t.z - pz); if (d < bd) { bd = d; best = t; } } return best; };
+  const scan = () => {
+    const px = player.pos.x, pz = player.pos.z; let best = null, bw = 1e9;
+    const offer = (d, w, label, fn, kind) => { if (d + w < bw) { bw = d + w; best = { label, fn, kind }; } };
+    for (const an of fauna.animals) {
+      if (an.kind === 'chicken' && hourNow() > 21) continue;
+      const d = Math.hypot(an.x - px, an.z - pz); if (d > 2.6) continue;
+      if (an.kind === 'chicken') offer(d, 0, '🥚 Взять яйцо', () => { if ((an.cool || 0) > performance.now()) return toast('Эта курочка уже снеслась — подождите'); an.cool = performance.now() + 120000; addItem('eggs', 1); toast('+1 яйцо'); }, 'a');
+      else if (an.kind === 'cow') offer(d, 0, '🥛 Подоить корову', () => { if ((an.cool || 0) > performance.now()) return toast('Корову уже подоили — подождите'); an.cool = performance.now() + 240000; addItem('milk', 1); toast('+1 банка молока'); }, 'a');
+      else offer(d, 0.3, an.kind === 'dog' ? '🐕 Погладить собаку' : '🐈 Погладить кошку', () => { S.q.petsD = S.q.petsD || 0; S.q.petsC = S.q.petsC || 0; if (an.kind === 'dog') S.q.petsD++; else S.q.petsC++; toast(an.kind === 'dog' ? pickR(['Гав!', 'Пёс виляет хвостом', 'Собака довольна']) : pickR(['Мур-р…', 'Кошка мурлычет', 'Мяу!'])); dirty = true; if (!S.q.pets && S.q.petsD >= 3 && S.q.petsC >= 3) { S.q.pets = 1; addMoney(30); toast('Друг животных: +30 ₴'); } }, 'a');
+    }
+    const ap = nearestApple(px, pz);
+    if (ap) { const k = Math.round(ap.x) + ',' + Math.round(ap.z); offer(Math.hypot(ap.x - px, ap.z - pz), 0.5, '🍎 Собрать яблоки', () => { const c = getClock(), absDay = c.day; if (S.treeDay[k] === absDay) return toast('Яблоки на этой яблоне уже собраны'); S.treeDay[k] = absDay; const n = 2 + Math.floor(Math.random() * 3); addItem('apples', n); toast(`+${n} ${plural(n, 'яблоко', 'яблока', 'яблок')}`); }, 't');
+    }
+    for (const s of nav.shops) { const d = Math.hypot(s.door.x - px, s.door.z - pz); if (d < 5.5) offer(d, -1, '🛒 В магазин', () => openShop(s), 's'); }
+    for (const a of sim.actors) {
+      if (a.hidden) continue; const d = Math.hypot(a.x - px, a.z - pz); if (d > 3.8) continue;
+      offer(d, 0.2, `💬 Поговорить: ${a.res.first}`, () => talkTo(a), 'n');
+    }
+    for (const key of ['bread', 'eggs', 'milk']) { const g = giver[key]; if (!g || !g.hidden) continue; const d = Math.hypot(g.house.door.x - px, g.house.door.z - pz); if (d < 3.6) offer(d, 0.5, `🚪 Постучать: ${g.res.first}`, () => talkTo(g), 'd'); }
+    cand = best;
+    if (best && !dlgOpen) { act.style.display = 'block'; act.textContent = best.label + '  [F]'; } else act.style.display = 'none';
+  };
+  const doAct = () => { if (dlgOpen || !cand) return; cand.fn(); };
+  act.onclick = doAct;
+  addEventListener('keydown', (e) => { if (e.code === 'KeyF') doAct(); if (e.code === 'KeyB') (panelOpen ? closePanel() : openPanel('inv')); if (e.code === 'Escape') { closeDlg(); closePanel(); } });
+
+  // ---------- quest markers (projected DOM)
+  const v3 = new THREE.Vector3();
+  const targets = () => {
+    const t = [];
+    const g = giver;
+    const d = (a) => ({ x: a.house.door.x, z: a.house.door.z });
+    if (g.bread) { if (S.q.bread === 0 || (S.q.bread === 1 && S.inv.bread > 0)) t.push({ ...d(g.bread), ic: S.q.bread === 0 ? '❗' : '✔' }); else if (S.q.bread === 1) { const s = shopDoor(player.pos); if (s) t.push({ x: s.door.x, z: s.door.z, ic: '🛒' }); } }
+    if (g.eggs && (S.q.eggs === 0 || (S.q.eggs === 1 && S.inv.eggs >= 4))) t.push({ ...d(g.eggs), ic: S.q.eggs === 0 ? '❗' : '✔' });
+    if (g.milk && (S.q.milk === 0 || (S.q.milk === 1 && S.inv.milk > 0))) t.push({ ...d(g.milk), ic: S.q.milk === 0 ? '❗' : '✔' });
+    return t.map((q) => ({ ...q, dist: Math.hypot(q.x - player.pos.x, q.z - player.pos.z) })).sort((a, b) => a.dist - b.dist).slice(0, 2);
+  };
+  let lastMark = 0;
+  const updateMarkers = (now) => {
+    if (now - lastMark < 0.05) return; lastMark = now;
+    const ts = targets();
+    for (let i = 0; i < marks.length; i++) {
+      const m = marks[i], q = ts[i];
+      if (!q || q.dist > 260) { m.style.display = 'none'; continue; }
+      v3.set(q.x, world.heightAt(q.x, q.z) + 3.1, q.z).project(camera);
+      if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1) { m.style.display = 'none'; continue; }
+      m.style.display = 'block'; m.textContent = q.ic + ' ' + Math.round(q.dist) + ' м'; m.style.transform = `translate(${(v3.x * 0.5 + 0.5) * innerWidth}px, ${(-v3.y * 0.5 + 0.5) * innerHeight}px) translate(-50%, -100%)`;
+    }
+  };
+
+  // ---------- save/load plumbing
+  setInterval(() => { if (dirty) save(); }, 15000);
+  addEventListener('pagehide', () => save());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+  refreshBar();
+
+  return {
+    state: () => S, loaded, save, toast, openPanel, closePanel, talkTo, giver, cand: () => cand,
+    applyLoaded(hasTimeParam) { // restore clock + position of a saved game (URL ?t=… wins for the clock)
+      if (!loaded) return;
+      if (!hasTimeParam) setClock(S.hour, S.day);
+      if (S.pos && Math.abs(S.pos.x) < 490 && Math.abs(S.pos.z) < 490) { player.teleport(S.pos.x, S.pos.z, S.pos.yaw); }
+    },
+    update(now) { if (now - lastScan > 0.2) { lastScan = now; scan(); } updateMarkers(now); void tStart; },
+    markDirty() { dirty = true; },
+  };
+}

@@ -39,7 +39,7 @@ export function createHUD(handlers) {
       const hh = Math.floor(h) % 24, mm = Math.floor((h % 1) * 60);
       $('clock').textContent = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
       $('time-slider').value = h;
-      $('phase').textContent = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'][day % 7] + ' · ' + (h < 4.5 || h >= 21 ? 'Ночь' : h < 6.5 ? 'Рассвет' : h < 11 ? 'Утро' : h < 16 ? 'День' : h < 19 ? 'Вечер' : 'Закат');
+      $('phase').textContent = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'][day % 7] + ', день ' + (day + 1) + ' · ' + (h < 4.5 || h >= 21 ? 'Ночь' : h < 6.5 ? 'Рассвет' : h < 11 ? 'Утро' : h < 16 ? 'День' : h < 19 ? 'Вечер' : 'Закат');
     },
     setQuality(label, scale) { $('btn-quality').textContent = `Качество: ${label}`; this._scale = scale; },
     setFps(fps, extra) { $('fps').textContent = `${Math.round(fps)} fps${extra ? ' · ' + extra : ''}`; },
