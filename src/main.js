@@ -182,8 +182,10 @@ async function boot() {
   let day = params.has('day') ? parseInt(params.get('day'), 10) : 0;           // 0 = Monday
   let auto = params.get('auto') !== '0';
 
+  // in the Fears-to-Fathom look the dense fog hides everything beyond ~250 m, so draw distances / shadow maps are capped (fewer draw calls & triangles)
+  const effQ = (q) => (styleKey === 'f2f' ? { ...q, treeDist: Math.min(q.treeDist, 420), grassR: Math.min(q.grassR, 32), npcDist: Math.min(q.npcDist, 280), shadowMap: Math.min(q.shadowMap, 1024), reflect: Math.min(q.reflect, 256), waterRes: Math.min(q.waterRes, 256) } : q);
   const applyQuality = (key, first = false) => {
-    Q = QUALITY[key]; qKey = key;
+    Q = effQ(QUALITY[key]); qKey = key;
     applyPR();
     sky.sun.castShadow = Q.shadows;
     const sh = sky.sun.shadow;
@@ -295,7 +297,7 @@ async function boot() {
     setLoFiMaterials(loState, scene, materials, terrain, f);
     wx.styleOver = f ? 0.78 : 0; wx.styleFog = f ? 0.5 : 0; wx._settled = false; sky.fogMul = f ? 0.8 : 1;
     if (instant && f) { wx.over = Math.max(wx.over, 0.78); wx.fog = Math.max(wx.fog, 0.5); }
-    resScale = 1; applyPR();
+    resScale = 1; applyQuality(qKey, true);
     sky.setHour(hour, camera, 0, true);
     const b = document.getElementById('btn-style'); if (b) b.textContent = 'Стиль: ' + (f ? 'Fears to Fathom' : 'Реализм');
     const tb = document.getElementById('btn-tex'); if (tb) tb.style.display = f ? 'none' : '';
