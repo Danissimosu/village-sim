@@ -50,7 +50,7 @@ body.menu-hidden #npc-card { bottom: calc(env(safe-area-inset-bottom, 0px) + 14p
 #gbar { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 112px); left: calc(env(safe-area-inset-left, 0px) + 10px); padding: 5px 10px; background: var(--glass); border: 1px solid var(--line); border-radius: 12px; font-size: 13px; font-weight: 700; display: flex; gap: 10px; align-items: center; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); max-width: min(250px, 60vw); flex-wrap: wrap; }
 #act-btn { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 52px); transform: translateX(-50%); font: inherit; font-size: 15px; font-weight: 700; color: #fff; background: rgba(201, 105, 43, 0.92); border: 2px solid rgba(255,255,255,0.5); border-radius: 999px; padding: 12px 22px; z-index: 6; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
 #act-btn:active { transform: translateX(-50%) scale(0.96); }
-#toast { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 70px); transform: translateX(-50%); background: rgba(14, 22, 34, 0.85); padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.4s; pointer-events: none !important; z-index: 8; white-space: nowrap; }
+#toast { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); background: rgba(14, 22, 34, 0.85); padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.4s; pointer-events: none !important; z-index: 8; white-space: nowrap; }
 #dlg, #gpanel { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); transform: translateX(-50%); width: min(380px, calc(100vw - 20px)); max-height: 70vh; overflow: auto; padding: 12px 14px 12px; background: rgba(14, 22, 34, 0.86); border: 1px solid var(--line); border-radius: 16px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-size: 14px; z-index: 9; }
 #gpanel { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 60px); }
 #dlg .nm { font-size: 17px; font-weight: 700; padding-right: 26px; }
@@ -74,5 +74,5 @@ body.menu-hidden #btn-bag { display: none; }
 body.menu-hidden #gbar { top: calc(env(safe-area-inset-top, 0px) + 10px); }
 body.menu-hidden #btn-weather { display: none; }
 body.menu-hidden #btn-tex { display: none; }
-#btn-mute { position: absolute; right: calc(env(safe-area-inset-right, 0px) + 10px); bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); width: 46px; height: 46px; font-size: 22px; line-height: 1; border-radius: 50%; color: #fff; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 6; }
+#btn-mute { position: absolute; left: calc(env(safe-area-inset-left, 0px) + 10px); bottom: calc(env(safe-area-inset-bottom, 0px) + 42px); width: 46px; height: 46px; font-size: 22px; line-height: 1; border-radius: 50%; color: #fff; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 6; }
 #btn-mute.on { background: rgba(255, 207, 107, 0.35); }

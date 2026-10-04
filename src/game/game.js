@@ -262,7 +262,7 @@ export function createGame(ctx) {
       if (!hasTimeParam) setClock(S.hour, S.day);
       if (S.pos && Math.abs(S.pos.x) < 490 && Math.abs(S.pos.z) < 490) { player.teleport(S.pos.x, S.pos.z, S.pos.yaw); }
     },
-    update(now) { if (now - lastScan > 0.2) { lastScan = now; scan(); } updateMarkers(now); void tStart; },
+    update(now) { if (now - lastScan > 0.2) { lastScan = now; scan(); const ct = $('card-time'); if (ct && ct.offsetParent) bar.style.top = Math.round(ct.getBoundingClientRect().bottom + 6) + 'px'; else bar.style.top = ''; } updateMarkers(now); void tStart; },
     markDirty() { dirty = true; },
   };
 }

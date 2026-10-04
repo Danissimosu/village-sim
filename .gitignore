@@ -1,3 +1,7 @@
 node_modules
 dist
 cache
+__pycache__
+*.png.tmp
+/screenshot-*.png
+data_raw/t_*.png
