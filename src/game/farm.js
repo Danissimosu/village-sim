@@ -17,11 +17,21 @@ export function createFarm({ scene, world, layout }) {
     for (let k = 0; k < n; k++) {
       const vc = -g.d / 2 + cd * (k + 0.5);
       const plot = { id: `${Math.round(g.cx)},${Math.round(g.cz)}:${k}`, g, c, s, vc, cd, hw: g.w / 2, cells: [], base: 0 };
+      if (g.rowsU) {   // plants sit on the ridges of the bed (rows run along v)
+        const lo = Math.max(vc - cd / 2 + 0.3, g.vClip[0]), hi = Math.min(vc + cd / 2 - 0.3, g.vClip[1]), nv = Math.max(0, Math.floor((hi - lo) / 0.7) + 1);
+        for (let r = 0; r < g.rowsU.length; r++) for (let q = 0; q < nv; q++) {
+          const u = g.rowsU[r], v = nv > 1 ? lo + (hi - lo) * q / (nv - 1) : (lo + hi) / 2;
+          const x = g.cx + c * u - s * v, z = g.cz + s * u + c * v;
+          plot.cells.push({ x, z, y: world.heightAt(x, z) + (g.rowH || 0), rnd: ((q * 7 + r * 13 + k * 5) % 10) / 10 });
+        }
+        if (!plot.cells.length) continue;
+      } else {
       const rows = Math.max(2, Math.floor((cd - 1.0) / 0.9)), cols = Math.max(3, Math.floor((g.w - 1.0) / 0.8));
       for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) {
         const u = (q - (cols - 1) / 2) * 0.8, v = vc + (r - (rows - 1) / 2) * 0.9;
         const x = g.cx + c * u - s * v, z = g.cz + s * u + c * v;
         plot.cells.push({ x, z, y: world.heightAt(x, z), rnd: ((q * 7 + r * 13 + k * 5) % 10) / 10 });
+      }
       }
       plots.push(plot);
     }

@@ -131,8 +131,9 @@ export function planHeroPlot(world, layout) {
   layout.paths.push([house.door, porch, gateIn, gateOut]);
   layout.paths.push([H.W(doorU + 1.2, F.house[2] - 0.8), H.W(7.4, 12), H.W(7.4, 33), H.W(2.5, 36), H.W(1, 46)]);   // dirt path to the garden
   // vegetable beds (nav garden spots + yard ground paint)
-  const bed = (u0, u1, v0, v1) => { const [cx, cz] = H.W((u0 + u1) / 2, (v0 + v1) / 2); layout.gardens.push({ cx, cz, rot, w: u1 - u0, d: v1 - v0, own: true }); };
-  bed(-1.6, 5.6, 29, 53);
+  const bed = (u0, u1, v0, v1) => { const [cx, cz] = H.W((u0 + u1) / 2, (v0 + v1) / 2); const g = { cx, cz, rot, w: u1 - u0, d: v1 - v0, own: true }; layout.gardens.push(g); return g; };
+  { const g = bed(-1.6, 5.6, 29, 53); // the 6 raised ridges (u = -0.7 + 1.05 i, v 33..51 in plot coords) are where crops grow; v is mirrored in the garden frame (about v = 41)
+    g.rowsU = [0, 1, 2, 3, 4, 5].map((i) => -0.7 + i * 1.05 - 2); g.rowH = 0.2; g.vClip = [41 - 51 + 0.5, 41 - 33 - 0.5]; }
   // collision fences (gate gap kept wide enough for villagers to squeeze through the 1 m collision grid)
   const line = (u0, v0, u1, v1) => layout.fences.push({ kind: 'hero', pts: [H.W(u0, v0), H.W(u1, v1)] });
   line(-HALF, VF, GATE_U - 1.3, VF); line(GATE_U + 1.3, VF, HALF, VF);

@@ -23,7 +23,7 @@ const FRAG = /* glsl */`
 varying vec3 vDir;
 uniform sampler2D tHDR; uniform vec3 uSun; uniform vec3 uMoon; uniform vec3 uSunCol;
 uniform float uDay; uniform float uTwi; uniform float uTime; uniform float uEnv; uniform float uRot;
-uniform vec3 uFogOut; uniform vec3 uGround; uniform float uOver;
+uniform vec3 uFogOut; uniform vec3 uGround; uniform float uOver; uniform float uLin; uniform vec3 uFogLin;
 float h31(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 void main(){
   vec3 d = normalize(vDir);
@@ -52,7 +52,7 @@ void main(){
   #include <colorspace_fragment>
   float hz = d.y < 0.0 ? 1.0 : pow(1.0 - d.y, 8.0) * 0.92;
   if (uEnv > 0.5) hz = d.y < 0.0 ? 0.0 : hz * 0.5;
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogOut, hz);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, uLin > 0.5 ? uFogLin : uFogOut, hz);
 }`;
 
 export class Sky {
@@ -60,7 +60,7 @@ export class Sky {
     this.renderer = renderer; this.scene = scene;
     this.uniforms = {
       tHDR: { value: null }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uMoon: { value: new THREE.Vector3(0, -1, 0) }, uSunCol: { value: new THREE.Color(1, 0.9, 0.7) },
-      uDay: { value: 1 }, uTwi: { value: 0 }, uTime: { value: 0 }, uEnv: { value: 0 }, uRot: { value: 0 }, uFogOut: { value: new THREE.Color(0.6, 0.7, 0.85) }, uGround: { value: new THREE.Color(0.1, 0.12, 0.07) }, uOver: { value: 0 },
+      uDay: { value: 1 }, uTwi: { value: 0 }, uTime: { value: 0 }, uEnv: { value: 0 }, uRot: { value: 0 }, uFogOut: { value: new THREE.Color(0.6, 0.7, 0.85) }, uGround: { value: new THREE.Color(0.1, 0.12, 0.07) }, uOver: { value: 0 }, uLin: { value: 0 }, uFogLin: { value: new THREE.Color(0.6, 0.7, 0.85) },
     };
     this.mat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG, side: THREE.BackSide, depthWrite: false, depthTest: true, fog: false });
     const geo = new THREE.SphereGeometry(1, 40, 20);
@@ -75,7 +75,7 @@ export class Sky {
     this.fog = new THREE.FogExp2(0x9fb4cc, 0.0017); scene.fog = this.fog;
     this.sunDir = new THREE.Vector3(0, 1, 0); this.lightDir = new THREE.Vector3(0, 1, 0);
     this.dayFog = new THREE.Color(0.55, 0.66, 0.82);
-    this.wx = { over: 0, fog: 0 };
+    this.wx = { over: 0, fog: 0 }; this.fogMul = 1;
     this.hour = 10.5; this.state = { day: 1, sunAlt: 0.5, night: 0 };
   }
   async load() {
@@ -115,8 +115,9 @@ export class Sky {
     const twiC = new THREE.Color(0.62, 0.36, 0.28);
     const fogC = night.clone().lerp(this.dayFog.clone().lerp(twiC, twi * 0.55), day);
     { const lum = (fogC.r + fogC.g + fogC.b) / 3; fogC.lerp(new THREE.Color(lum * 0.92, lum * 0.96, lum), Math.min(1, this.wx.over * 0.85 + this.wx.fog * 0.6)); if (this.wx.fog > 0.01) fogC.lerp(new THREE.Color(0.72, 0.75, 0.78).multiplyScalar(Math.max(0.04, day)), this.wx.fog * 0.6); }
+    if (this.fogMul !== 1) fogC.multiplyScalar(this.fogMul);
     this.fog.color.copy(fogC);
-    U.uFogOut.value.copy(fogC).convertLinearToSRGB();
+    U.uFogOut.value.copy(fogC).convertLinearToSRGB(); U.uFogLin.value.copy(fogC);
     this.fog.density = (lerp(0.0014, 0.0019, 1 - day) + twi * 0.0004) * (1 + 1.2 * this.wx.over) + 0.011 * this.wx.fog;
     U.uGround.value.setRGB(0.1, 0.12, 0.07).multiplyScalar(Math.max(0.03, day));
     this.renderer.toneMappingExposure = lerp(1.45, 0.92, day) * (1 + 0.1 * this.wx.over);

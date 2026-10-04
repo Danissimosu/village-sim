@@ -76,3 +76,6 @@ body.menu-hidden #btn-weather { display: none; }
 body.menu-hidden #btn-tex { display: none; }
 #btn-mute { position: absolute; left: calc(env(safe-area-inset-left, 0px) + 10px); bottom: calc(env(safe-area-inset-bottom, 0px) + 42px); width: 46px; height: 46px; font-size: 22px; line-height: 1; border-radius: 50%; color: #fff; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 6; }
 #btn-mute.on { background: rgba(255, 207, 107, 0.35); }
+
+body.menu-hidden #btn-style { display: none; }
+body.style-f2f #app canvas { image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; }

@@ -6,6 +6,7 @@ import { clamp, smoothstep } from './util.js';
 import { loadWorldData } from './world/data.js';
 import { generateLayout } from './world/layout.js';
 import { buildRasters } from './world/splat.js';
+import { LoFiPost, setLoFiMaterials } from './post/lofi.js';
 import { loadMaterials, setAnisotropy, setTextureQuality } from './world/materials.js';
 import { buildTerrain } from './world/terrain.js';
 import { BuildingSet, addBuilding, addWell, makeExtraMaterials } from './world/buildings.js';
@@ -39,6 +40,9 @@ const fatal = (msg) => { const l = document.getElementById('loader'); if (l) l.c
 const tick = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
+let styleKey = params.get('style') || (() => { try { return localStorage.getItem('lyubimivka-style'); } catch (e) { return null; } })() || 'f2f';
+if (styleKey !== 'real') styleKey = 'f2f';
+const F2F_PR = { low: 0.34, medium: 0.4, high: 0.45, ultra: 0.5 };   // internal resolution relative to CSS pixels in the Fears-to-Fathom look
 let qKey = params.get('q') || (isTouch ? 'high' : 'ultra');
 if (!QUALITY[qKey]) qKey = 'high';
 
@@ -63,11 +67,13 @@ async function boot() {
   const dpr = window.devicePixelRatio || 1;
   let resScale = 1;
   const applyPR = () => {
+    if (styleKey === 'f2f') { renderer.setPixelRatio(F2F_PR[qKey] || 0.42); renderer.setSize(innerWidth, innerHeight); if (post) post.resize(); return; }
     let pr = Math.min(dpr, Q.pr) * resScale;
     const maxPix = isTouch ? 2.4e6 : 9.5e6; // cap total drawing-buffer pixels (keeps iOS happy / saves memory on phones)
     pr = Math.min(pr, Math.sqrt(maxPix / (innerWidth * innerHeight)));
     renderer.setPixelRatio(Math.max(0.5, pr)); renderer.setSize(innerWidth, innerHeight);
   };
+  let post = null;
   applyPR();
 
   // ---- data
@@ -273,8 +279,29 @@ async function boot() {
   if (params.get('poi') === '35b') gotoHero();
   if (params.get('poi') === '84') gotoHero84();
   const ftimes = [];
-  const info = renderer.info; info.autoReset = true;
+  const info = renderer.info; info.autoReset = false;
   const manual = params.get('manual') === '1';
+  // ---- graphics style: 'f2f' (lo-fi retro horror look, default) / 'real' (PBR realism)
+  const loState = {};
+  const renderFrame = () => {
+    info.reset();
+    if (styleKey === 'f2f' && post) { sky.uniforms.uLin.value = 1; post.render(scene, camera, performance.now() / 1000); sky.uniforms.uLin.value = 0; }
+    else renderer.render(scene, camera);
+  };
+  const applyStyle = (key, instant) => {
+    styleKey = key; const f = key === 'f2f';
+    document.body.classList.toggle('style-f2f', f);
+    if (f && !post) post = new LoFiPost(renderer);
+    setLoFiMaterials(loState, scene, materials, terrain, f);
+    wx.styleOver = f ? 0.78 : 0; wx.styleFog = f ? 0.5 : 0; wx._settled = false; sky.fogMul = f ? 0.8 : 1;
+    if (instant && f) { wx.over = Math.max(wx.over, 0.78); wx.fog = Math.max(wx.fog, 0.5); }
+    resScale = 1; applyPR();
+    sky.setHour(hour, camera, 0, true);
+    const b = document.getElementById('btn-style'); if (b) b.textContent = 'Стиль: ' + (f ? 'Fears to Fathom' : 'Реализм');
+    const tb = document.getElementById('btn-tex'); if (tb) tb.style.display = f ? 'none' : '';
+    try { localStorage.setItem('lyubimivka-style', key); } catch (e) { /* ignore */ }
+  };
+
   function frame(fixedDt) {
     raf = 0; if (!manual && !paused && !ctxLost) raf = requestAnimationFrame(frame);
     if (ctxLost) return;
@@ -306,7 +333,7 @@ async function boot() {
       if (!selected || (selected.hidden && time - hiddenSince > 6)) { card.hide(); selected = null; }
       else { if (selected.hidden) { card.mark(0, 0, false); } else { hiddenSince = time; const sp = npcR.screenPos(camera, selected, innerWidth, innerHeight); card.mark(sp.x, sp.y, sp.visible); } if (time - lastCard > 0.4) { lastCard = time; card.refresh(selected, sim); } }
     }
-    renderer.render(scene, camera);
+    renderFrame();
 
     // fps + adaptive resolution
     frames++; accT += dt;
@@ -327,12 +354,15 @@ async function boot() {
     onCtxLost = () => { if (raf) cancelAnimationFrame(raf); raf = 0; ov.style.display = 'flex'; clearTimeout(lostTimer); lostTimer = setTimeout(() => { ov.querySelector('#ctx-lost-t').textContent = 'Не удалось восстановить графику.'; ov.querySelector('button').style.display = 'block'; }, 6000); };
     onCtxBack = () => { clearTimeout(lostTimer); ov.style.display = 'none'; applyPR(); try { applyQuality(qKey, true); } catch (e) { console.warn(e); } startLoop(); };
   }
+  { const sb = document.createElement('button'); sb.className = 'btn'; sb.id = 'btn-style'; hud.el('btns').insertBefore(sb, hud.el('btn-hide')); sb.addEventListener('click', () => applyStyle(styleKey === 'f2f' ? 'real' : 'f2f')); }
+  applyStyle(styleKey, true);
   if (!manual) startLoop();
   setTimeout(() => document.getElementById('loader').classList.add('done'), 300);
 
   window.__village = {
+    applyStyle, get style() { return styleKey; }, post: () => post,
     fauna, game, wx, audio, details, yardExtras, ambient, hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
-    step: (n = 1, dt = 0.05) => { for (let i = 0; i < n; i++) frame(dt); }, snap: () => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', 0.92); },
+    step: (n = 1, dt = 0.05) => { for (let i = 0; i < n; i++) frame(dt); }, snap: () => { renderFrame(); return renderer.domElement.toDataURL('image/jpeg', 0.92); },
     stats: () => ({ npc: { ...npcR.counts, ...sim.stats, total: pop.size }, calls: info.render.calls, tris: info.render.triangles, geos: info.memory.geometries, textures: info.memory.textures, fps, bstat, fenceTris, houses: layout.stats, trees: trees.count }),
     setHour: (h, d) => { hour = h; if (d !== undefined) day = d; auto = false; sky.setHour(h, camera, time, true); hud.setClock(h, day); },
     select: (id) => { const a = sim.actors[id]; selected = a; hiddenSince = time; card.show(a, sim); }, pick: (x, y) => selectAt(x, y), setQuality: (k) => applyQuality(k), get hour() { return hour; },

@@ -35,6 +35,7 @@ export class Weather {
   set(kind) { if (!WEATHER[kind]) kind = 'clear'; this.kind = kind; this._settled = false; }
   update(dt, time, cam, night) {
     const tgt = { over: this.kind === 'rain' ? 0.88 : this.kind === 'fog' ? 0.55 : 0, fog: this.kind === 'fog' ? 1 : 0, rain: this.kind === 'rain' ? 1 : 0 };
+    tgt.over = Math.max(tgt.over, this.styleOver || 0); tgt.fog = Math.max(tgt.fog, this.styleFog || 0);
     const k = Math.min(1, dt * 0.45);
     this.over += (tgt.over - this.over) * k; this.fog += (tgt.fog - this.fog) * k; this.rain += (tgt.rain - this.rain) * k;
     this.sky.wx.over = this.over; this.sky.wx.fog = this.fog;
