@@ -73,3 +73,6 @@ body.menu-hidden #btn-bag { display: none; }
 #npc-card .talk { display: block; width: 100%; margin-top: 8px; font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: rgba(201, 105, 43, 0.9); border: 0; border-radius: 10px; padding: 9px; }
 body.menu-hidden #gbar { top: calc(env(safe-area-inset-top, 0px) + 10px); }
 body.menu-hidden #btn-weather { display: none; }
+body.menu-hidden #btn-tex { display: none; }
+#btn-mute { position: absolute; right: calc(env(safe-area-inset-right, 0px) + 10px); bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); width: 46px; height: 46px; font-size: 22px; line-height: 1; border-radius: 50%; color: #fff; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 6; }
+#btn-mute.on { background: rgba(255, 207, 107, 0.35); }

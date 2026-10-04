@@ -6,7 +6,7 @@ import { clamp, smoothstep } from './util.js';
 import { loadWorldData } from './world/data.js';
 import { generateLayout } from './world/layout.js';
 import { buildRasters } from './world/splat.js';
-import { loadMaterials, setAnisotropy } from './world/materials.js';
+import { loadMaterials, setAnisotropy, setTextureQuality } from './world/materials.js';
 import { buildTerrain } from './world/terrain.js';
 import { BuildingSet, addBuilding, addWell, makeExtraMaterials } from './world/buildings.js';
 import { buildFences, buildPoles, buildMast, buildRoadMarkings, buildSigns, buildBusStops, buildGates } from './world/props.js';
@@ -24,6 +24,7 @@ import { Fauna } from './world/fauna.js';
 import { Details } from './world/details.js';
 import { Ambient } from './world/ambient.js';
 import { Weather, WEATHER, WEATHER_ORDER } from './world/weather.js';
+import { createAmbience } from './audio/ambience.js';
 import { createGame } from './game/game.js';
 import { createNpcCard } from './ui/npc-card.js';
 import { planHeroPlot, buildHeroPlot, filterHeroTrees, HERO_ADDRESS } from './world/hero.js';
@@ -198,6 +199,18 @@ async function boot() {
     onGoto84: () => gotoHero84(),
   });
   applyQuality(qKey, true);
+  { // texture pack toggle: 1K (default) / 2K — offered on desktops and big-memory devices only; auto-on for clearly high-end desktops
+    const mem = navigator.deviceMemory || 0, maxTex = renderer.capabilities.maxTextureSize;
+    const capable = maxTex >= 8192 && (!isTouch || mem >= 6);
+    let pref = null; try { pref = localStorage.getItem('lyubimivka-tex'); } catch (e) { /* ignore */ }
+    const auto = !isTouch && mem >= 8 && (navigator.hardwareConcurrency || 0) >= 8 && maxTex >= 16384;
+    const want = params.get('tex') ? params.get('tex') : pref || (auto ? '2k' : '1k');
+    const tb = document.createElement('button'); tb.className = 'btn'; tb.id = 'btn-tex'; tb.textContent = 'Текстуры: 1K';
+    if (capable) hud.el('btns').insertBefore(tb, hud.el('btn-hide'));
+    const apply = async (lv) => { tb.textContent = 'Текстуры: ' + (lv === '2k' ? '2K…' : '1K…'); try { const r = await setTextureQuality(materials, terrain, lv, Math.min(Q.aniso, renderer.capabilities.getMaxAnisotropy())); tb.textContent = 'Текстуры: ' + r.toUpperCase(); try { localStorage.setItem('lyubimivka-tex', r); } catch (e) { /* ignore */ } } catch (e) { console.warn('texture pack failed', e); tb.textContent = 'Текстуры: 1K'; } };
+    tb.addEventListener('click', () => apply(materials._tq && materials._tq.level === '2k' ? '1k' : '2k'));
+    if (capable && want === '2k') setTimeout(() => apply('2k'), 2500);
+  }
   if (params.get('hud') === '0') document.getElementById('hud').style.display = 'none';
   if (!auto) { document.getElementById('btn-auto').classList.remove('on'); document.getElementById('btn-auto').textContent = 'Пауза'; }
 
@@ -221,6 +234,8 @@ async function boot() {
   const card = createNpcCard();
   card.onClose(() => { selected = null; });
   let weather = params.get('w') && WEATHER[params.get('w')] ? params.get('w') : 'clear';
+  const audio = createAmbience(document.getElementById('hud'));
+  let audT = 0;
   const wx = new Weather(scene, sky); wx.set(weather); if (weather !== 'clear') { wx.over = weather === 'rain' ? 0.88 : 0.55; wx.fog = weather === 'fog' ? 1 : 0; wx.rain = weather === 'rain' ? 1 : 0; }
   { const wb = document.createElement('button'); wb.className = 'btn'; wb.id = 'btn-weather'; wb.textContent = 'Погода: ' + WEATHER[weather]; hud.el('btns').insertBefore(wb, hud.el('btn-hide'));
     wb.addEventListener('click', () => { weather = WEATHER_ORDER[(WEATHER_ORDER.indexOf(weather) + 1) % WEATHER_ORDER.length]; wx.set(weather); wb.textContent = 'Погода: ' + WEATHER[weather]; }); }
@@ -279,6 +294,8 @@ async function boot() {
     fauna.update(dt, player.pos, hour, time);
     game.update(time);
     wx.update(dt, time, camera, 1 - sky.state.day);
+    if (!audio.muted && time - audT > 0.5) { audT = time; let dogNear = false, cowNear = false; for (const a of fauna.animals) { const d = Math.hypot(a.x - player.pos.x, a.z - player.pos.z); if (d < 14) { if (a.kind === 'dog') dogNear = true; else if (a.kind === 'cow') cowNear = true; } } audio._st = { hour, night: 1 - sky.state.day, rain: wx.rain, fog: wx.fog, dogNear, cowNear }; }
+    if (audio._st) audio.update(dt, audio._st);
     details.update(1 - sky.state.day);
     ambient.update(dt, time, player.pos, hour, 1 - sky.state.day, weather);
     npcR.update(camera, Q, time);
@@ -312,7 +329,7 @@ async function boot() {
   setTimeout(() => document.getElementById('loader').classList.add('done'), 300);
 
   window.__village = {
-    fauna, game, wx, details, ambient, hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
+    fauna, game, wx, audio, details, ambient, hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
     step: (n = 1, dt = 0.05) => { for (let i = 0; i < n; i++) frame(dt); }, snap: () => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', 0.92); },
     stats: () => ({ npc: { ...npcR.counts, ...sim.stats, total: pop.size }, calls: info.render.calls, tris: info.render.triangles, geos: info.memory.geometries, textures: info.memory.textures, fps, bstat, fenceTris, houses: layout.stats, trees: trees.count }),
     setHour: (h, d) => { hour = h; if (d !== undefined) day = d; auto = false; sky.setHour(h, camera, time, true); hud.setClock(h, day); },

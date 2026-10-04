@@ -89,6 +89,6 @@ vec3 decodeN(vec3 t) { vec3 n = t * 2.0 - 1.0; return n; }`)
   mat.customProgramCacheKey = () => 'terrain-splat-v1';
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
-  mesh.userData.splat = splatTex;
+  mesh.userData.splat = splatTex; mesh.userData.U = U;
   return mesh;
 }
