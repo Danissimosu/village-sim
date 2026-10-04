@@ -131,7 +131,7 @@ export function planHeroPlot(world, layout) {
   layout.paths.push([house.door, porch, gateIn, gateOut]);
   layout.paths.push([H.W(doorU + 1.2, F.house[2] - 0.8), H.W(7.4, 12), H.W(7.4, 33), H.W(2.5, 36), H.W(1, 46)]);   // dirt path to the garden
   // vegetable beds (nav garden spots + yard ground paint)
-  const bed = (u0, u1, v0, v1) => { const [cx, cz] = H.W((u0 + u1) / 2, (v0 + v1) / 2); layout.gardens.push({ cx, cz, rot, w: u1 - u0, d: v1 - v0 }); };
+  const bed = (u0, u1, v0, v1) => { const [cx, cz] = H.W((u0 + u1) / 2, (v0 + v1) / 2); layout.gardens.push({ cx, cz, rot, w: u1 - u0, d: v1 - v0, own: true }); };
   bed(-1.6, 5.6, 29, 53);
   // collision fences (gate gap kept wide enough for villagers to squeeze through the 1 m collision grid)
   const line = (u0, v0, u1, v1) => layout.fences.push({ kind: 'hero', pts: [H.W(u0, v0), H.W(u1, v1)] });

@@ -241,7 +241,7 @@ async function boot() {
   const wx = new Weather(scene, sky); wx.set(weather); if (weather !== 'clear') { wx.over = weather === 'rain' ? 0.88 : 0.55; wx.fog = weather === 'fog' ? 1 : 0; wx.rain = weather === 'rain' ? 1 : 0; }
   { const wb = document.createElement('button'); wb.className = 'btn'; wb.id = 'btn-weather'; wb.textContent = 'Погода: ' + WEATHER[weather]; hud.el('btns').insertBefore(wb, hud.el('btn-hide'));
     wb.addEventListener('click', () => { weather = WEATHER_ORDER[(WEATHER_ORDER.indexOf(weather) + 1) % WEATHER_ORDER.length]; wx.set(weather); wb.textContent = 'Погода: ' + WEATHER[weather]; }); }
-  const game = createGame({ world, nav, sim, fauna, player, layout, camera, hud, getClock: () => ({ hour, day }), setClock: (h, d) => { hour = h; day = d; sky.setHour(h, camera, 0, true); hud.setClock(h, day); }, getWeather: () => weather });
+  const game = createGame({ scene, world, nav, sim, fauna, player, layout, camera, hud, getClock: () => ({ hour, day }), setClock: (h, d) => { hour = h; day = d; sky.setHour(h, camera, 0, true); hud.setClock(h, day); }, getWeather: () => weather });
   game.applyLoaded(params.has('t'));
   card.onTalk(() => { if (!selected) return; if (selected.hidden || Math.hypot(selected.x - player.pos.x, selected.z - player.pos.z) > 7) game.toast('Подойдите ближе, чтобы поговорить'); else { card.hide(); game.talkTo(selected); selected = null; } });
   const selectAt = (x, y) => {

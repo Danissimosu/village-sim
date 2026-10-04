@@ -42,7 +42,7 @@ export function planHero84(world, layout) {
   const gateOut = H.W(GATE_U, hw + 0.3), gateIn = H.W(GATE_U, VF + 0.9);
   layout.paths.push([house.door, H.W(F.house[1] + 2.3, doorV), H.W(F.house[1] + 2.0, F.house[2] - 2.2), gateIn, gateOut]);
   // garden beds behind the house
-  { const [cx, cz] = H.W(-3.6, VF + 42); layout.gardens.push({ cx, cz, rot, w: 8.4, d: 16 }); }
+  { const [cx, cz] = H.W(-3.6, VF + 42); layout.gardens.push({ cx, cz, rot, w: 8.4, d: 16, own: true }); }
   // collision fences: stone/plank street fence with a 3.4 m gate gap (villagers pass), side + back fences, utility pole
   const line = (u0, v0, u1, v1) => layout.fences.push({ kind: 'hero', pts: [H.W(u0, v0), H.W(u1, v1)] });
   line(-HALF, VF, GATE_U - 1.7, VF); line(GATE_U + 1.7, VF, HALF, VF);
