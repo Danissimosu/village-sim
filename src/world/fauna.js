@@ -145,6 +145,31 @@ function geoCat() {
   return b.build();
 }
 
+function inPoly(pts, x, z) { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[i], b = pts[j]; if ((a[1] > z) !== (b[1] > z) && x < ((b[0] - a[0]) * (z - a[1])) / (b[1] - a[1]) + a[0]) c = !c; } return c; }
+function geoGoose() {
+  const b = new VB(); const O = [0.95, 0.6, 0.15];
+  b.box(-0.28, 0.22, -0.13, 0.22, 0.46, 0.13, W); b.box(-0.4, 0.34, -0.05, -0.28, 0.46, 0.05, W);                       // body + tail
+  b.box(0.12, 0.4, -0.04, 0.2, 0.78, 0.04, W); b.box(0.14, 0.74, -0.05, 0.28, 0.84, 0.05, W); b.box(0.28, 0.76, -0.03, 0.38, 0.81, 0.03, O);   // neck, head, beak
+  for (const z of [-0.06, 0.06]) b.box(-0.02, 0, z - 0.012, 0.02, 0.24, z + 0.012, O);
+  return b.build();
+}
+function geoGoat() {
+  const b = new VB(); const D = [0.2, 0.18, 0.17];
+  b.box(-0.4, 0.38, -0.15, 0.34, 0.75, 0.15, W); b.box(0.3, 0.55, -0.1, 0.5, 0.92, 0.1, W); b.box(0.46, 0.62, -0.08, 0.66, 0.82, 0.08, W);
+  b.box(0.52, 0.9, -0.08, 0.57, 1.08, -0.04, D); b.box(0.52, 0.9, 0.04, 0.57, 1.08, 0.08, D); b.box(0.64, 0.6, -0.04, 0.68, 0.7, 0.04, D);
+  for (const [x, z] of [[-0.3, -0.1], [-0.3, 0.1], [0.22, -0.1], [0.22, 0.1]]) b.box(x - 0.035, 0, z - 0.035, x + 0.035, 0.4, z + 0.035, W);
+  b.box(-0.46, 0.6, -0.025, -0.38, 0.72, 0.025, W); b.box(0.5, 0.58, -0.02, 0.56, 0.66, 0.02, W);
+  return b.build();
+}
+function geoBus() { // маршрутка (minibus) – yellow, forward = +X
+  const b = new VB(); const Y = [0.95, 0.75, 0.15];
+  wheels(b, [-2.1, 1.9], 0.4, 0.95, 0.28);
+  b.box(-3.0, 0.4, -1.0, 3.0, 1.1, 1.0, W); b.box(-3.0, 1.1, -0.98, 2.4, 2.55, 0.98, W); b.box(-2.9, 1.55, -1.0, 2.3, 2.15, 1.0, GLASS); b.box(-3.0, 1.1, -1.0, 3.0, 1.35, 1.0, Y);
+  b.box(-3.0, 2.5, -0.98, 2.4, 2.6, 0.98, W); b.wedge(2.4, 3.0, 1.1, 1.1, 1.1, -0.98, 0.98, W); b.wedge(2.4, 2.95, 1.1, 2.45, 1.7, -0.98, 0.98, GLASS);
+  b.box(2.95, 0.55, -0.85, 3.05, 0.8, -0.5, HEAD); b.box(2.95, 0.55, 0.5, 3.05, 0.8, 0.85, HEAD); b.box(-3.05, 0.6, -0.9, -2.97, 0.9, -0.6, TAIL); b.box(-3.05, 0.6, 0.6, -2.97, 0.9, 0.9, TAIL);
+  b.box(2.2, 2.6, -0.4, 2.4, 2.75, 0.4, [0.95, 0.75, 0.15]);
+  return b.build();
+}
 const MAT = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.12 });
 const MAT_A = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
 const CAR_COLORS = [[0.78, 0.78, 0.8], [0.8, 0.12, 0.1], [0.12, 0.25, 0.55], [0.85, 0.82, 0.7], [0.2, 0.4, 0.28], [0.08, 0.08, 0.1], [0.55, 0.57, 0.6], [0.8, 0.55, 0.15]];
@@ -180,13 +205,13 @@ export class Fauna {
     }).filter((r) => r.len > 120);
     const byKind = (...k) => roads.filter((r) => k.includes(r.kind));
     const carRoads = byKind('trunk', 'residential', 'unclassified'), tractorRoads = byKind('track', 'unclassified', 'residential');
-    const mkCars = { sedan: geoSedan(), van: geoVan(), pickup: geoPickup(), tractor: geoTractor() };
-    const caps = { sedan: 14, van: 8, pickup: 8, tractor: 10 };
+    const mkCars = { sedan: geoSedan(), van: geoVan(), pickup: geoPickup(), tractor: geoTractor(), bus: geoBus() };
+    const caps = { sedan: 18, van: 8, pickup: 8, tractor: 10, bus: 2 };
     for (const k of Object.keys(mkCars)) mk(k, mkCars[k], caps[k], MAT(), true);
-    this.counts = { sedan: 0, van: 0, pickup: 0, tractor: 0 };
+    this.counts = { sedan: 0, van: 0, pickup: 0, tractor: 0, bus: 0 };
     const addVeh = (type, road, speed, parked, pos) => {
       const idx = this.counts[type]++; if (idx >= caps[type]) { this.counts[type]--; return; }
-      const col = type === 'tractor' ? pick(TRACTOR_COLORS) : pick(CAR_COLORS);
+      const col = type === 'tractor' ? pick(TRACTOR_COLORS) : type === 'bus' ? [0.9, 0.9, 0.9] : pick(CAR_COLORS);
       this.meshes[type].setColorAt(idx, _c.setRGB(col[0], col[1], col[2]));
       const v = { type, idx, road, s: 0, dir: rng() < 0.5 ? 1 : -1, speed, v: 0, parked, x: 0, z: 0, ang: 0, wait: 0, lane: road ? road.w * 0.25 : 0 };
       if (road) v.s = road.len * (0.1 + rng() * 0.8);
@@ -195,7 +220,8 @@ export class Fauna {
     };
     const R = (a, b) => a + rng() * (b - a);
     const moving = [['sedan', carRoads, 6, 11], ['sedan', carRoads, 6, 11], ['sedan', carRoads, 5, 9], ['van', carRoads, 6, 10], ['van', carRoads, 5, 9], ['pickup', carRoads, 6, 10], ['pickup', carRoads, 5, 9], ['sedan', carRoads, 7, 12],
-      ['tractor', tractorRoads, 2.5, 4.5], ['tractor', tractorRoads, 2.5, 4.5], ['tractor', tractorRoads, 2, 4], ['tractor', tractorRoads, 2, 4]];
+      ['sedan', carRoads, 6, 10], ['pickup', carRoads, 6, 9], ['van', carRoads, 6, 9], ['bus', byKind('trunk'), 9, 13], ['bus', byKind('trunk'), 8, 12],
+      ['tractor', tractorRoads, 2.5, 4.5], ['tractor', tractorRoads, 2.5, 4.5], ['tractor', tractorRoads, 2, 4], ['tractor', tractorRoads, 2, 4], ['tractor', tractorRoads, 2.5, 4], ['tractor', tractorRoads, 2.5, 4]];
     for (const [type, rs, a, b] of moving) {
       if (!rs.length) continue;
       const tot = rs.reduce((s, r) => s + r.len, 0); let t = rng() * tot, road = rs[0]; for (const r of rs) { t -= r.len; if (t <= 0) { road = r; break; } }
@@ -219,15 +245,17 @@ export class Fauna {
     }
     // ---- animals
     this.animals = [];
-    const aCap = { cow: 40, chicken: 110, dog: 36, cat: 30 };
-    mk('cow', geoCow(), aCap.cow, MAT_A(), false); mk('chicken', geoChicken(), aCap.chicken, MAT_A(), false); mk('dog', geoDog(), aCap.dog, MAT_A(), false); mk('cat', geoCat(), aCap.cat, MAT_A(), false);
+    const aCap = { cow: 80, chicken: 240, dog: 80, cat: 60, goose: 40, goat: 60 };
+    mk('cow', geoCow(), aCap.cow, MAT_A(), false); mk('chicken', geoChicken(), aCap.chicken, MAT_A(), false); mk('dog', geoDog(), aCap.dog, MAT_A(), false); mk('cat', geoCat(), aCap.cat, MAT_A(), false); mk('goose', geoGoose(), aCap.goose, MAT_A(), false); mk('goat', geoGoat(), aCap.goat, MAT_A(), false);
     const SPEC = {
       cow: { cols: COW_COLORS, walk: 0.55, scale: 1, bob: 0.015, graze: true },
       chicken: { cols: CHICKEN_COLORS, walk: 0.7, scale: 1, bob: 0.02, graze: true },
       dog: { cols: DOG_COLORS, walk: 1.5, scale: 1, bob: 0.03, graze: false },
       cat: { cols: CAT_COLORS, walk: 0.8, scale: 1, bob: 0.01, graze: false },
+      goose: { cols: [[1, 1, 1], [1, 1, 1], [0.85, 0.85, 0.82], [0.6, 0.6, 0.6]], walk: 0.6, scale: 1, bob: 0.012, graze: true },
+      goat: { cols: [[1, 1, 1], [0.85, 0.8, 0.7], [0.45, 0.35, 0.28], [0.2, 0.18, 0.17], [0.8, 0.78, 0.74]], walk: 0.8, scale: 1, bob: 0.015, graze: true },
     };
-    this.spec = SPEC; this.aCount = { cow: 0, chicken: 0, dog: 0, cat: 0 };
+    this.spec = SPEC; this.aCount = { cow: 0, chicken: 0, dog: 0, cat: 0, goose: 0, goat: 0 };
     const addAnimal = (kind, hx, hz, r, scaleJ = 0.1) => {
       if (this.aCount[kind] >= aCap[kind]) return null;
       const idx = this.aCount[kind]++, col = pick(SPEC[kind].cols);
@@ -252,6 +280,37 @@ export class Fauna {
       if (rng() < 0.3) { const p = around(h, 'front', 8); if (p) addAnimal('dog', p[0], p[1], 7); }
       if (rng() < 0.24) { const p = around(h, 'front', 6); if (p) addAnimal('cat', p[0], p[1], 5); }
     }
+    // pasture herds (cows + goats on the mapped grassland) and geese on the pond banks
+    for (const ar of world.json.areas) {
+      if (ar.kind !== 'grassland' || ar.pts.length < 3) continue;
+      let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (const q of ar.pts) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); z0 = Math.min(z0, q[1]); z1 = Math.max(z1, q[1]); }
+      for (let t = 0; t < 60; t++) {
+        const x = x0 + rng() * (x1 - x0), z = z0 + rng() * (z1 - z0); if (Math.abs(x) > 500 || Math.abs(z) > 500 || !inPoly(ar.pts, x, z) || !free(x, z)) continue;
+        const nC = 2 + Math.floor(rng() * 4), nG = 1 + Math.floor(rng() * 3);
+        for (let i = 0; i < nC; i++) addAnimal('cow', x + (rng() - 0.5) * 8, z + (rng() - 0.5) * 8, 11);
+        for (let i = 0; i < nG; i++) addAnimal('goat', x + (rng() - 0.5) * 8, z + (rng() - 0.5) * 8, 10);
+        break;
+      }
+    }
+    for (const p of world.ponds) {
+      if (p.area < 250) continue; const cxp = p.pts.reduce((a, q) => a + q[0], 0) / p.pts.length, czp = p.pts.reduce((a, q) => a + q[1], 0) / p.pts.length;
+      let placed = 0;
+      for (let t = 0; t < 40 && !placed; t++) {
+        const q = p.pts[Math.floor(rng() * p.pts.length)], dx = q[0] - cxp, dz = q[1] - czp, L = Math.hypot(dx, dz) || 1, x = q[0] + dx / L * 2.2, z = q[1] + dz / L * 2.2;
+        if (Math.abs(x) > 500 || Math.abs(z) > 500 || !free(x, z)) continue;
+        const n = 3 + Math.floor(rng() * 4); for (let i = 0; i < n; i++) addAnimal('goose', x + (rng() - 0.5) * 3, z + (rng() - 0.5) * 3, 7); placed = 1;
+      }
+    }
+    // goats in some yards
+    for (const h of houses) if (rng() < 0.1) { const p = around(h, 'back', 14); if (p) addAnimal('goat', p[0], p[1], 6); }
+    // headlights / tail lights at night (additive glow sprites, one Points draw call)
+    { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,0.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+      const n = (this.vehicles.length) * 4; this.lightPos = new Float32Array(n * 3); const col = new Float32Array(n * 3);
+      for (let i = 0; i < this.vehicles.length; i++) for (let k = 0; k < 4; k++) { const o = (i * 4 + k) * 3; if (k < 2) { col[o] = 1; col[o + 1] = 0.95; col[o + 2] = 0.75; } else { col[o] = 0.9; col[o + 1] = 0.08; col[o + 2] = 0.05; } }
+      const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.BufferAttribute(this.lightPos, 3)); g2.setAttribute('color', new THREE.BufferAttribute(col, 3)); g2.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5);
+      this.lightMat = new THREE.PointsMaterial({ map: tex, size: 1.8, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true, opacity: 0, fog: false });
+      this.lights = new THREE.Points(g2, this.lightMat); this.lights.frustumCulled = false; this.lights.visible = false; this.group.add(this.lights); }
     this._ids = 0;
   }
 
@@ -269,7 +328,7 @@ export class Fauna {
     if (sc !== 1) { _m2.makeScale(sc, sc, sc); _m.multiply(_m2); }
     _m.setPosition(x, y, z); mesh.setMatrixAt(idx, _m);
   }
-  update(dt, playerPos, hour, time) {
+  update(dt, playerPos, hour, time, nightF = 0) {
     const world = this.world, px = playerPos.x, pz = playerPos.z;
     // ---- vehicles
     const pose = { x: 0, z: 0, ang: 0 };
@@ -290,20 +349,31 @@ export class Fauna {
         v.x = pose.x; v.z = pose.z; v.ang = pose.ang; x = v.x; z = v.z; ang = v.ang;
       }
       // ground-following pitch from front/rear heights
-      const L = v.type === 'tractor' ? 1.4 : 1.6, c = Math.cos(ang), s = Math.sin(ang);
+      const L = v.type === 'tractor' ? 1.4 : v.type === 'bus' ? 2.2 : 1.6, c = Math.cos(ang), s = Math.sin(ang);
       const hf = world.heightAt(x + c * L, z + s * L), hr = world.heightAt(x - c * L, z - s * L);
       _x.set(c * 2 * L, hf - hr, s * 2 * L).normalize();
       _z.crossVectors(_x, UP).normalize(); _y.crossVectors(_z, _x).normalize();
       _m.makeBasis(_x, _y, _z); _m.setPosition(x, (hf + hr) / 2 + 0.02, z);
       mesh.setMatrixAt(v.idx, _m);
     }
-    for (const k of ['sedan', 'van', 'pickup', 'tractor']) { const m = this.meshes[k]; m.count = this.counts[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    this.lightMat.opacity = Math.min(1, nightF * 1.3); this.lights.visible = nightF > 0.2;
+    if (this.lights.visible) {
+      const P = this.lightPos; let i = 0;
+      for (const v of this.vehicles) {
+        const c = Math.cos(v.ang), s = Math.sin(v.ang), fl = v.type === 'tractor' ? 2.1 : v.type === 'bus' ? 3.0 : v.type === 'van' ? 2.2 : 2.05, rl = v.type === 'tractor' ? -1.2 : v.type === 'bus' ? -3.0 : -2.1, y = world.heightAt(v.x, v.z) + (v.type === 'tractor' ? 0.95 : v.type === 'bus' ? 0.7 : 0.55), w = v.type === 'bus' ? 0.7 : 0.6;
+        const on = v.parked ? 0 : 1; // parked cars stay dark
+        for (let k = 0; k < 4; k++) { const lx = k < 2 ? fl : rl, lz = (k % 2 ? 1 : -1) * w, o = (i * 4 + k) * 3; P[o] = v.x + c * lx - s * lz; P[o + 1] = on ? y : -100; P[o + 2] = v.z + s * lx + c * lz; }
+        i++;
+      }
+      this.lights.geometry.attributes.position.needsUpdate = true;
+    }
+    for (const k of ['sedan', 'van', 'pickup', 'tractor', 'bus']) { const m = this.meshes[k]; m.count = this.counts[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
 
     // ---- animals (only those near the player are simulated; far ones are not drawn)
     const night = hour < 5.2 || hour > 21;      // chickens roost, others rest
     const R2 = 170 * 170;
-    const vis = { cow: 0, chicken: 0, dog: 0, cat: 0 };
-    const map = { cow: [], chicken: [], dog: [], cat: [] };
+    const vis = { cow: 0, chicken: 0, dog: 0, cat: 0, goose: 0, goat: 0 };
+    const map = { cow: [], chicken: [], dog: [], cat: [], goose: [], goat: [] };
     for (const a of this.animals) {
       const dxp = a.x - px, dzp = a.z - pz;
       if (dxp * dxp + dzp * dzp > R2) continue;
@@ -328,14 +398,14 @@ export class Fauna {
       a.ph += dt * (moving ? (a.kind === 'chicken' ? 10 : a.kind === 'dog' ? 9 : 5) : 0.8);
       const gy = world.heightAt(a.x, a.z);
       let y = gy + (moving ? Math.abs(Math.sin(a.ph)) * sp.bob : 0), tilt = 0;
-      if (!moving && sp.graze) tilt = a.kind === 'chicken' ? -0.5 * (0.5 + 0.5 * Math.sin(a.ph * 2.2 + a.idx)) : -0.18;
+      if (!moving && sp.graze) tilt = a.kind === 'chicken' || a.kind === 'goose' ? -0.5 * (0.5 + 0.5 * Math.sin(a.ph * 2.2 + a.idx)) : -0.18;
       if (!moving && (a.kind === 'cat' || a.kind === 'dog') && a.sleepy && night) tilt = 0;
       this._setMat(this.meshes[a.kind], vis[a.kind], a.x, y, a.z, a.ang, a.sc, tilt);
       map[a.kind].push(a);
       vis[a.kind]++;
     }
     // instance colours follow the compacted order
-    for (const k of ['cow', 'chicken', 'dog', 'cat']) {
+    for (const k of ['cow', 'chicken', 'dog', 'cat', 'goose', 'goat']) {
       const m = this.meshes[k]; m.count = vis[k];
       const arr = map[k];
       for (let i = 0; i < arr.length; i++) { const col = this._colors(k, arr[i]); m.setColorAt(i, col); }

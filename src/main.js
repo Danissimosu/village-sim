@@ -291,7 +291,7 @@ async function boot() {
     if (time - lastTreeUpd > 0.25) { lastTreeUpd = time; trees.update(player.pos.x, player.pos.z, Q.treeDist, Q.shadows); }
     waters.update(dt, player.pos.x, player.pos.z);
     sim.update(dt, day, hour, player.pos);
-    fauna.update(dt, player.pos, hour, time);
+    fauna.update(dt, player.pos, hour, time, 1 - sky.state.day);
     game.update(time);
     wx.update(dt, time, camera, 1 - sky.state.day);
     if (!audio.muted && time - audT > 0.5) { audT = time; let dogNear = false, cowNear = false; for (const a of fauna.animals) { const d = Math.hypot(a.x - player.pos.x, a.z - player.pos.z); if (d < 14) { if (a.kind === 'dog') dogNear = true; else if (a.kind === 'cow') cowNear = true; } } audio._st = { hour, night: 1 - sky.state.day, rain: wx.rain, fog: wx.fog, dogNear, cowNear }; }
