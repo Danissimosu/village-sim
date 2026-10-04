@@ -32,8 +32,15 @@ void main(){
 export class LoFiPost {
   constructor(renderer) {
     this.renderer = renderer;
-    const half = renderer.extensions.has('EXT_color_buffer_half_float') || renderer.extensions.has('EXT_color_buffer_float');
-    this.rt = new THREE.WebGLRenderTarget(64, 64, { type: half ? THREE.HalfFloatType : THREE.UnsignedByteType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, samples: 0 });
+    const half = !/[?&]rt8=1/.test(location.search) && (renderer.extensions.has('EXT_color_buffer_half_float') || renderer.extensions.has('EXT_color_buffer_float'));
+    const mk = (type) => new THREE.WebGLRenderTarget(64, 64, { type, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, samples: 0 });
+    this.rt = mk(half ? THREE.HalfFloatType : THREE.UnsignedByteType);
+    if (half) {   // make sure the half-float framebuffer is really renderable on this GPU (iOS/Android quirks); otherwise fall back to 8 bit
+      let ok = false;
+      try { renderer.setRenderTarget(this.rt); const gl = renderer.getContext(); ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; } catch (e) { ok = false; }
+      renderer.setRenderTarget(null);
+      if (!ok) { console.warn('half-float target unsupported, using 8-bit'); this.rt.dispose(); this.rt = mk(THREE.UnsignedByteType); }
+    }
     this.u = { tScene: { value: this.rt.texture }, uRes: { value: new THREE.Vector2(64, 64) }, uTime: { value: 0 }, uDim: { value: 1.0 }, uSat: { value: 0.5 }, uLevels: { value: 28 }, uGrain: { value: 0.07 }, uLift: { value: 0 } };
     const mat = new THREE.ShaderMaterial({ uniforms: this.u, vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false, fog: false });
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); this.quad.frustumCulled = false;
