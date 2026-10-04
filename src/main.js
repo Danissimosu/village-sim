@@ -26,7 +26,9 @@ import { planHero84, buildHero84, HERO84_ADDRESS } from './world/hero84.js';
 
 const params = new URLSearchParams(location.search);
 const $ld = document.getElementById('ld-fill'), $ldt = document.getElementById('ld-text');
-const setLoad = (p, t) => { $ld.style.width = Math.round(p * 100) + '%'; if (t) $ldt.textContent = t; };
+let loadShown = 0;
+const setLoad = (p, t) => { loadShown = Math.max(loadShown, p); $ld.style.width = Math.round(loadShown * 100) + '%'; if (t) $ldt.textContent = t + (loadShown < 1 ? ' ' + Math.round(loadShown * 100) + '%' : ''); };
+const fatal = (msg) => { const l = document.getElementById('loader'); if (l) l.classList.remove('done'); $ldt.textContent = msg; };
 const tick = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
@@ -43,6 +45,9 @@ async function boot() {
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.shadowMap.autoUpdate = true;
   app.appendChild(renderer.domElement);
+  let ctxLost = false, onCtxLost = () => {}, onCtxBack = () => {};
+  renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); ctxLost = true; onCtxLost(); }, false);
+  renderer.domElement.addEventListener('webglcontextrestored', () => { ctxLost = false; onCtxBack(); }, false);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 0.15, 3600);
   scene.add(camera);
@@ -52,7 +57,7 @@ async function boot() {
   let resScale = 1;
   const applyPR = () => {
     let pr = Math.min(dpr, Q.pr) * resScale;
-    const maxPix = 9.5e6; // cap total drawing-buffer pixels (keeps iOS happy)
+    const maxPix = isTouch ? 2.4e6 : 9.5e6; // cap total drawing-buffer pixels (keeps iOS happy / saves memory on phones)
     pr = Math.min(pr, Math.sqrt(maxPix / (innerWidth * innerHeight)));
     renderer.setPixelRatio(Math.max(0.5, pr)); renderer.setSize(innerWidth, innerHeight);
   };
@@ -186,7 +191,13 @@ async function boot() {
   if (!auto) { document.getElementById('btn-auto').classList.remove('on'); document.getElementById('btn-auto').textContent = 'Пауза'; }
 
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); applyPR(); });
-  document.addEventListener('visibilitychange', () => { clock.getDelta(); });
+  // pause everything while the tab is hidden (saves battery, avoids a huge dt jump and iOS killing the tab)
+  let paused = false, raf = 0;
+  const startLoop = () => { if (manual || raf || paused || ctxLost) return; lastT = performance.now(); raf = requestAnimationFrame(frame); };
+  const syncPause = () => { paused = document.hidden; if (!paused) startLoop(); else { if (raf) cancelAnimationFrame(raf); raf = 0; } };
+  document.addEventListener('visibilitychange', syncPause);
+  addEventListener('pagehide', () => { paused = true; if (raf) cancelAnimationFrame(raf); raf = 0; });
+  addEventListener('pageshow', () => { paused = document.hidden; startLoop(); });
   addEventListener('keydown', (e) => { if (e.code === 'KeyQ') hud.el('btn-quality').click(); if (e.code === 'KeyT') hud.el('btn-auto').click(); });
 
   // initial lighting + first frames
@@ -230,7 +241,8 @@ async function boot() {
   const info = renderer.info; info.autoReset = true;
   const manual = params.get('manual') === '1';
   function frame(fixedDt) {
-    if (!manual) requestAnimationFrame(frame);
+    raf = 0; if (!manual && !paused && !ctxLost) raf = requestAnimationFrame(frame);
+    if (ctxLost) return;
     const dt = manual ? fixedDt : Math.min(clock.getDelta(), 0.05);
     time += dt;
     if (auto) { hour += dt * TIME_SPEED; if (hour >= 24) { hour -= 24; day++; } }
@@ -265,7 +277,15 @@ async function boot() {
       else goodT = 0;
     }
   }
-  if (!manual) frame();
+  // WebGL context loss (iOS kills contexts under memory pressure / tab switches): stop drawing, show a message, resume on restore
+  { let lostTimer = 0;
+    const ov = document.createElement('div'); ov.id = 'ctx-lost'; ov.style.cssText = 'position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(11,18,32,.85);color:#fff;font:600 15px -apple-system,system-ui,sans-serif;text-align:center;padding:24px';
+    ov.innerHTML = '<div id="ctx-lost-t">Графика приостановлена, восстанавливаем…</div><button id="ctx-lost-b" style="display:none;font:inherit;color:#fff;background:#c9692b;border:0;border-radius:12px;padding:10px 18px">Перезагрузить</button>';
+    document.body.appendChild(ov); ov.querySelector('button').onclick = () => location.reload();
+    onCtxLost = () => { if (raf) cancelAnimationFrame(raf); raf = 0; ov.style.display = 'flex'; clearTimeout(lostTimer); lostTimer = setTimeout(() => { ov.querySelector('#ctx-lost-t').textContent = 'Не удалось восстановить графику.'; ov.querySelector('button').style.display = 'block'; }, 6000); };
+    onCtxBack = () => { clearTimeout(lostTimer); ov.style.display = 'none'; applyPR(); try { applyQuality(qKey, true); } catch (e) { console.warn(e); } startLoop(); };
+  }
+  if (!manual) startLoop();
   setTimeout(() => document.getElementById('loader').classList.add('done'), 300);
 
   window.__village = {

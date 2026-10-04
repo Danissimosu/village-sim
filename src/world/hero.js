@@ -142,7 +142,7 @@ export function planHeroPlot(world, layout) {
   zone(-1.4, 5.4, 32, 52, 0, 0.6);
   zone(F.house[0] - 1, F.house[1] + 1, F.house[2] - 2.2, F.house[3] + 1.2, 1, 0.35);
   // fruit trees & berry bushes (the shared tree system)
-  const T = (u, v, sp, s) => { const [x, z] = H.W(u, v); layout.trees.push({ x, z, sp, s }); };
+  const T = (u, v, sp, s) => { const [x, z] = H.W(u, v); layout.trees.push({ x, z, sp, s, hero: true }); };
   T(-6.6, 22, 'apple', 1.0); T(-6.2, 28.5, 'apple', 0.9); T(7.0, 46.5, 'apple', 1.05); T(-6.8, 45, 'apple', 0.95); T(6.8, 17.8, 'apple', 0.85);
   T(7.2, 58, 'bush', 0.9); T(-0.5, 60.5, 'bush', 1.0); T(3, 60.5, 'bush', 0.9); T(-7.4, 63, 'oak', 0.9); T(6.5, 62, 'birch', 0.9);
   layout.hero = H;
