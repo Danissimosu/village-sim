@@ -267,7 +267,7 @@ export class Grass {
     this.enabled = true;
   }
   setQuality(q) { this.radius = q.grassR; this.density = q.grassDensity; this.uniforms.uFadeA.value = q.grassR * 0.62; this.uniforms.uFadeB.value = q.grassR * 0.97; this.cap = Math.ceil(this.CS * this.CS * this.density); this.clear(); }
-  clear() { for (const [, c] of this.chunks) { this.group.remove(c); this.pool.push(c); } this.chunks.clear(); }
+  clear() { for (const [, c] of this.chunks) { this.group.remove(c); this.pool.push(c); } this.chunks.clear(); this._key = null; }
   _fill(mesh, ci, cj) {
     const { world, rasters, CS } = this;
     const rng = mulberry32((ci * 73856093) ^ (cj * 19349663) ^ 0x9e3779b9);
@@ -303,6 +303,9 @@ export class Grass {
   update(px, pz, time, budget = 2) {
     this.uniforms.uTime.value = time; this.uniforms.uPlayer.value.set(px, 0, pz);
     if (!this.enabled) return;
+    const key = Math.round(px / 2) * 100003 + Math.round(pz / 2);       // nothing to stream while the player stays within ~2 m and all chunks are filled (saves per-frame allocations on phones)
+    if (key === this._key && !this._pending) return;
+    this._key = key;
     const { CS, radius } = this;
     const i0 = Math.floor((px - radius) / CS), i1 = Math.floor((px + radius) / CS), j0 = Math.floor((pz - radius) / CS), j1 = Math.floor((pz + radius) / CS);
     const want = new Set(); const todo = [];
@@ -314,6 +317,7 @@ export class Grass {
     }
     for (const [k, mesh] of this.chunks) if (!want.has(k)) { this.group.remove(mesh); this.pool.push(mesh); this.chunks.delete(k); }
     todo.sort((a, b) => a[0] - b[0]);
+    this._pending = Math.max(0, todo.length - budget);
     for (let t = 0; t < Math.min(budget, todo.length); t++) {
       const [, i, j, k] = todo[t];
       let mesh = this.pool.pop();
