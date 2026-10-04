@@ -287,7 +287,7 @@ async function boot() {
   const loState = {};
   const renderFrame = () => {
     info.reset();
-    if (styleKey === 'f2f' && post) { sky.uniforms.uLin.value = 1; post.render(scene, camera, performance.now() / 1000); sky.uniforms.uLin.value = 0; }
+    if (styleKey === 'f2f' && post) { post.u.uLift.value = 0.018 * sky.state.night; sky.uniforms.uLin.value = 1; post.render(scene, camera, performance.now() / 1000); sky.uniforms.uLin.value = 0; }
     else renderer.render(scene, camera);
   };
   const applyStyle = (key, instant) => {

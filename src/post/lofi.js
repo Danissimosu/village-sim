@@ -6,11 +6,11 @@ import * as THREE from 'three';
 const VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const FRAG = /* glsl */`
 varying vec2 vUv;
-uniform sampler2D tScene; uniform vec2 uRes; uniform float uTime; uniform float uDim; uniform float uSat; uniform float uLevels; uniform float uGrain;
+uniform sampler2D tScene; uniform vec2 uRes; uniform float uTime; uniform float uDim; uniform float uSat; uniform float uLevels; uniform float uGrain; uniform float uLift;
 const float B4[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 void main(){
-  vec3 c = texture2D(tScene, vUv).rgb * uDim;
+  vec3 c = texture2D(tScene, vUv).rgb * uDim + uLift * vec3(0.7, 0.9, 1.2);   // faint night lift so the dark stays playable
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   c = mix(vec3(l), c, uSat) * vec3(0.90, 0.98, 1.10);          // desaturated, cold
   c = max(c, vec3(0.0));
@@ -34,7 +34,7 @@ export class LoFiPost {
     this.renderer = renderer;
     const half = renderer.extensions.has('EXT_color_buffer_half_float') || renderer.extensions.has('EXT_color_buffer_float');
     this.rt = new THREE.WebGLRenderTarget(64, 64, { type: half ? THREE.HalfFloatType : THREE.UnsignedByteType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, samples: 0 });
-    this.u = { tScene: { value: this.rt.texture }, uRes: { value: new THREE.Vector2(64, 64) }, uTime: { value: 0 }, uDim: { value: 1.0 }, uSat: { value: 0.5 }, uLevels: { value: 28 }, uGrain: { value: 0.07 } };
+    this.u = { tScene: { value: this.rt.texture }, uRes: { value: new THREE.Vector2(64, 64) }, uTime: { value: 0 }, uDim: { value: 1.0 }, uSat: { value: 0.5 }, uLevels: { value: 28 }, uGrain: { value: 0.07 }, uLift: { value: 0 } };
     const mat = new THREE.ShaderMaterial({ uniforms: this.u, vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false, fog: false });
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); this.quad.frustumCulled = false;
     this.scene = new THREE.Scene(); this.scene.add(this.quad); this.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
