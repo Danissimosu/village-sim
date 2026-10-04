@@ -170,6 +170,19 @@ function geoBus() { // маршрутка (minibus) – yellow, forward = +X
   b.box(2.2, 2.6, -0.4, 2.4, 2.75, 0.4, [0.95, 0.75, 0.15]);
   return b.build();
 }
+function geoCart() { // конь с телегой (hay wagon), forward = +X
+  const b = new VB(); const BR = [0.36, 0.23, 0.14], WD = [0.55, 0.4, 0.26], HAY = [0.8, 0.68, 0.3];
+  b.box(0.9, 0.85, -0.27, 2.5, 1.5, 0.27, BR); b.box(2.3, 1.2, -0.15, 2.8, 1.95, 0.15, BR); b.box(2.7, 1.68, -0.13, 3.2, 1.95, 0.13, BR); b.box(3.12, 1.68, -0.1, 3.22, 1.82, 0.1, [0.15, 0.1, 0.08]);
+  b.box(2.3, 1.6, -0.04, 2.75, 2.02, 0.04, DARK); b.box(0.78, 0.9, -0.04, 0.92, 1.45, 0.04, DARK); b.box(2.78, 1.9, -0.12, 2.86, 2.08, -0.06, BR); b.box(2.78, 1.9, 0.06, 2.86, 2.08, 0.12, BR);
+  for (const x of [1.1, 2.3]) for (const z of [-0.17, 0.17]) { b.box(x - 0.06, 0, z - 0.06, x + 0.06, 0.88, z + 0.06, BR); b.box(x - 0.065, 0, z - 0.065, x + 0.065, 0.1, z + 0.065, DARK); }
+  b.box(-0.5, 0.95, -0.42, 1.6, 1.0, -0.37, WD); b.box(-0.5, 0.95, 0.37, 1.6, 1.0, 0.42, WD);                 // shafts
+  b.box(1.35, 1.1, -0.3, 1.65, 1.5, 0.3, [0.25, 0.15, 0.1]);                                                     // collar
+  b.box(-2.6, 0.7, -0.8, 0.2, 0.78, 0.8, WD);
+  b.box(-2.6, 0.78, -0.82, 0.2, 1.18, -0.74, WD); b.box(-2.6, 0.78, 0.74, 0.2, 1.18, 0.82, WD); b.box(0.14, 0.78, -0.8, 0.24, 1.25, 0.8, WD); b.box(-2.64, 0.78, -0.8, -2.56, 1.15, 0.8, WD);
+  b.box(-2.4, 0.78, -0.72, -0.4, 1.3, 0.72, HAY); b.box(-0.35, 1.02, -0.5, 0.1, 1.1, 0.5, [0.45, 0.3, 0.2]);
+  wheels(b, [-1.9, -0.3], 0.55, 0.88, 0.1);
+  return b.build();
+}
 const MAT = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.12 });
 const MAT_A = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
 const CAR_COLORS = [[0.78, 0.78, 0.8], [0.8, 0.12, 0.1], [0.12, 0.25, 0.55], [0.85, 0.82, 0.7], [0.2, 0.4, 0.28], [0.08, 0.08, 0.1], [0.55, 0.57, 0.6], [0.8, 0.55, 0.15]];
@@ -205,13 +218,13 @@ export class Fauna {
     }).filter((r) => r.len > 120);
     const byKind = (...k) => roads.filter((r) => k.includes(r.kind));
     const carRoads = byKind('trunk', 'residential', 'unclassified'), tractorRoads = byKind('track', 'unclassified', 'residential');
-    const mkCars = { sedan: geoSedan(), van: geoVan(), pickup: geoPickup(), tractor: geoTractor(), bus: geoBus() };
-    const caps = { sedan: 18, van: 8, pickup: 8, tractor: 10, bus: 2 };
+    const mkCars = { sedan: geoSedan(), van: geoVan(), pickup: geoPickup(), tractor: geoTractor(), bus: geoBus(), cart: geoCart() };
+    const caps = { sedan: 18, van: 8, pickup: 8, tractor: 10, bus: 2, cart: 4 };
     for (const k of Object.keys(mkCars)) mk(k, mkCars[k], caps[k], MAT(), true);
-    this.counts = { sedan: 0, van: 0, pickup: 0, tractor: 0, bus: 0 };
+    this.counts = { sedan: 0, van: 0, pickup: 0, tractor: 0, bus: 0, cart: 0 };
     const addVeh = (type, road, speed, parked, pos) => {
       const idx = this.counts[type]++; if (idx >= caps[type]) { this.counts[type]--; return; }
-      const col = type === 'tractor' ? pick(TRACTOR_COLORS) : type === 'bus' ? [0.9, 0.9, 0.9] : pick(CAR_COLORS);
+      const col = type === 'tractor' ? pick(TRACTOR_COLORS) : type === 'cart' ? [1, 1, 1] : type === 'bus' ? [0.9, 0.9, 0.9] : pick(CAR_COLORS);
       this.meshes[type].setColorAt(idx, _c.setRGB(col[0], col[1], col[2]));
       const v = { type, idx, road, s: 0, dir: rng() < 0.5 ? 1 : -1, speed, v: 0, parked, x: 0, z: 0, ang: 0, wait: 0, lane: road ? road.w * 0.25 : 0 };
       if (road) v.s = road.len * (0.1 + rng() * 0.8);
@@ -221,7 +234,7 @@ export class Fauna {
     const R = (a, b) => a + rng() * (b - a);
     const moving = [['sedan', carRoads, 6, 11], ['sedan', carRoads, 6, 11], ['sedan', carRoads, 5, 9], ['van', carRoads, 6, 10], ['van', carRoads, 5, 9], ['pickup', carRoads, 6, 10], ['pickup', carRoads, 5, 9], ['sedan', carRoads, 7, 12],
       ['sedan', carRoads, 6, 10], ['pickup', carRoads, 6, 9], ['van', carRoads, 6, 9], ['bus', byKind('trunk'), 9, 13], ['bus', byKind('trunk'), 8, 12],
-      ['tractor', tractorRoads, 2.5, 4.5], ['tractor', tractorRoads, 2.5, 4.5], ['tractor', tractorRoads, 2, 4], ['tractor', tractorRoads, 2, 4], ['tractor', tractorRoads, 2.5, 4], ['tractor', tractorRoads, 2.5, 4]];
+      ['cart', tractorRoads, 1.4, 2.4], ['cart', tractorRoads, 1.2, 2.2], ['cart', carRoads, 1.4, 2.2], ['tractor', tractorRoads, 2.5, 4.5], ['tractor', tractorRoads, 2.5, 4.5], ['tractor', tractorRoads, 2, 4], ['tractor', tractorRoads, 2, 4], ['tractor', tractorRoads, 2.5, 4], ['tractor', tractorRoads, 2.5, 4]];
     for (const [type, rs, a, b] of moving) {
       if (!rs.length) continue;
       const tot = rs.reduce((s, r) => s + r.len, 0); let t = rng() * tot, road = rs[0]; for (const r of rs) { t -= r.len; if (t <= 0) { road = r; break; } }
@@ -349,7 +362,7 @@ export class Fauna {
         v.x = pose.x; v.z = pose.z; v.ang = pose.ang; x = v.x; z = v.z; ang = v.ang;
       }
       // ground-following pitch from front/rear heights
-      const L = v.type === 'tractor' ? 1.4 : v.type === 'bus' ? 2.2 : 1.6, c = Math.cos(ang), s = Math.sin(ang);
+      const L = v.type === 'cart' ? 2.0 : v.type === 'tractor' ? 1.4 : v.type === 'bus' ? 2.2 : 1.6, c = Math.cos(ang), s = Math.sin(ang);
       const hf = world.heightAt(x + c * L, z + s * L), hr = world.heightAt(x - c * L, z - s * L);
       _x.set(c * 2 * L, hf - hr, s * 2 * L).normalize();
       _z.crossVectors(_x, UP).normalize(); _y.crossVectors(_z, _x).normalize();
@@ -361,13 +374,13 @@ export class Fauna {
       const P = this.lightPos; let i = 0;
       for (const v of this.vehicles) {
         const c = Math.cos(v.ang), s = Math.sin(v.ang), fl = v.type === 'tractor' ? 2.1 : v.type === 'bus' ? 3.0 : v.type === 'van' ? 2.2 : 2.05, rl = v.type === 'tractor' ? -1.2 : v.type === 'bus' ? -3.0 : -2.1, y = world.heightAt(v.x, v.z) + (v.type === 'tractor' ? 0.95 : v.type === 'bus' ? 0.7 : 0.55), w = v.type === 'bus' ? 0.7 : 0.6;
-        const on = v.parked ? 0 : 1; // parked cars stay dark
+        const on = v.parked || v.type === 'cart' ? 0 : 1; // parked cars stay dark
         for (let k = 0; k < 4; k++) { const lx = k < 2 ? fl : rl, lz = (k % 2 ? 1 : -1) * w, o = (i * 4 + k) * 3; P[o] = v.x + c * lx - s * lz; P[o + 1] = on ? y : -100; P[o + 2] = v.z + s * lx + c * lz; }
         i++;
       }
       this.lights.geometry.attributes.position.needsUpdate = true;
     }
-    for (const k of ['sedan', 'van', 'pickup', 'tractor', 'bus']) { const m = this.meshes[k]; m.count = this.counts[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    for (const k of ['sedan', 'van', 'pickup', 'tractor', 'bus', 'cart']) { const m = this.meshes[k]; m.count = this.counts[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
 
     // ---- animals (only those near the player are simulated; far ones are not drawn)
     const night = hour < 5.2 || hour > 21;      // chickens roost, others rest

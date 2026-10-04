@@ -22,6 +22,7 @@ import { NpcRenderer } from './world/npc-render.js';
 import { CivicSigns } from './world/npc-signs.js';
 import { Fauna } from './world/fauna.js';
 import { Details } from './world/details.js';
+import { YardExtras } from './world/yardextras.js';
 import { Ambient } from './world/ambient.js';
 import { Weather, WEATHER, WEATHER_ORDER } from './world/weather.js';
 import { createAmbience } from './audio/ambience.js';
@@ -136,6 +137,7 @@ async function boot() {
 
   const fauna = new Fauna(scene, world, layout, rasters, nav);
   const details = new Details(scene, world, layout, rasters, nav);
+  const yardExtras = new YardExtras(scene, world, layout, rasters);
   const ambient = new Ambient(scene, world, layout);
 
   // ---- villagers: navigation graph, population data, simulation, instanced renderer
@@ -329,7 +331,7 @@ async function boot() {
   setTimeout(() => document.getElementById('loader').classList.add('done'), 300);
 
   window.__village = {
-    fauna, game, wx, audio, details, ambient, hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
+    fauna, game, wx, audio, details, yardExtras, ambient, hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
     step: (n = 1, dt = 0.05) => { for (let i = 0; i < n; i++) frame(dt); }, snap: () => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', 0.92); },
     stats: () => ({ npc: { ...npcR.counts, ...sim.stats, total: pop.size }, calls: info.render.calls, tris: info.render.triangles, geos: info.memory.geometries, textures: info.memory.textures, fps, bstat, fenceTris, houses: layout.stats, trees: trees.count }),
     setHour: (h, d) => { hour = h; if (d !== undefined) day = d; auto = false; sky.setHour(h, camera, time, true); hud.setClock(h, day); },
