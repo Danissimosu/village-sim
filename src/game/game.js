@@ -376,7 +376,7 @@ export function createGame(ctx) {
       if (S.pos && Math.abs(S.pos.x) < 490 && Math.abs(S.pos.z) < 490) { player.teleport(S.pos.x, S.pos.z, S.pos.yaw); }
     },
     update(now) {
-      if (now - lastFarm > 1) { lastFarm = now; const c = getClock(), abs = c.day * 24 + c.hour; if (lastAbs !== null && abs > lastAbs && abs - lastAbs < 48 && farm.advance(S.farm, abs - lastAbs, abs, getWeather && getWeather() === 'rain')) dirty = true; lastAbs = abs; }
+      if (now - lastFarm > 1) { lastFarm = now; const c = getClock(), abs = c.day * 24 + c.hour; if (lastAbs !== null && abs > lastAbs && abs - lastAbs < 48 && farm.advance(S.farm, abs - lastAbs, abs, getWeather && getWeather() === 'rain')) dirty = true; lastAbs = abs; for (const pl of farm.plots) { const st = S.farm[pl.id]; if (st && !st.n && farm.frac(st) >= 1) { st.n = 1; toast(`${CROPS[st.c].icon} Созрел урожай: ${CROPS[st.c].name.toLowerCase()}!`); dirty = true; } } }
       if (now - lastScan > 0.2) { lastScan = now; scan(); const ct = $('card-time'); if (ct && ct.offsetParent) bar.style.top = Math.round(ct.getBoundingClientRect().bottom + 6) + 'px'; else bar.style.top = ''; } updateMarkers(now); void tStart; },
     markDirty() { dirty = true; },
   };
