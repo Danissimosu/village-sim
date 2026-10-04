@@ -20,6 +20,7 @@ import { buildNpcNav } from './world/npc-nav.js';
 import { NpcSim } from './world/npc-sim.js';
 import { NpcRenderer } from './world/npc-render.js';
 import { CivicSigns } from './world/npc-signs.js';
+import { Fauna } from './world/fauna.js';
 import { createNpcCard } from './ui/npc-card.js';
 import { planHeroPlot, buildHeroPlot, filterHeroTrees, HERO_ADDRESS } from './world/hero.js';
 import { planHero84, buildHero84, HERO84_ADDRESS } from './world/hero84.js';
@@ -127,6 +128,8 @@ async function boot() {
   const waters = new Waters(scene, world, sky);
   waters.setGrass(grass);
   waters.setReflection(Q.reflect);
+
+  const fauna = new Fauna(scene, world, layout, rasters, nav);
 
   // ---- villagers: navigation graph, population data, simulation, instanced renderer
   setLoad(0.96, 'Жители села…');
@@ -260,6 +263,7 @@ async function boot() {
     if (time - lastTreeUpd > 0.25) { lastTreeUpd = time; trees.update(player.pos.x, player.pos.z, Q.treeDist, Q.shadows); }
     waters.update(dt, player.pos.x, player.pos.z);
     sim.update(dt, day, hour, player.pos);
+    fauna.update(dt, player.pos, hour, time);
     npcR.update(camera, Q, time);
     if (time - lastSign > 0.5) { lastSign = time; signs.update(player.pos); hud.setPop(pop.size, sim.stats.outside); }
     if (card.visible) {
@@ -291,7 +295,7 @@ async function boot() {
   setTimeout(() => document.getElementById('loader').classList.add('done'), 300);
 
   window.__village = {
-    hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
+    fauna, hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
     step: (n = 1, dt = 0.05) => { for (let i = 0; i < n; i++) frame(dt); }, snap: () => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', 0.92); },
     stats: () => ({ npc: { ...npcR.counts, ...sim.stats, total: pop.size }, calls: info.render.calls, tris: info.render.triangles, geos: info.memory.geometries, textures: info.memory.textures, fps, bstat, fenceTris, houses: layout.stats, trees: trees.count }),
     setHour: (h, d) => { hour = h; if (d !== undefined) day = d; auto = false; sky.setHour(h, camera, time, true); hud.setClock(h, day); },
