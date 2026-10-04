@@ -79,3 +79,7 @@ body.menu-hidden #btn-tex { display: none; }
 
 body.menu-hidden #btn-style { display: none; }
 body.style-f2f #app canvas { image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; }
+/* Fears-to-Fathom look: old-school monospace HUD with square corners */
+body.style-f2f #hud, body.style-f2f #hud button, body.style-f2f #dlg, body.style-f2f #gpanel, body.style-f2f #toast, body.style-f2f #act-btn { font-family: "Courier New", ui-monospace, Menlo, monospace; letter-spacing: 0.2px; }
+body.style-f2f .card, body.style-f2f .btn, body.style-f2f #gbar, body.style-f2f #dlg, body.style-f2f #gpanel, body.style-f2f #toast, body.style-f2f #act-btn, body.style-f2f .chip, body.style-f2f #dlg-ch button, body.style-f2f #npc-card { border-radius: 3px !important; }
+body.style-f2f .card, body.style-f2f .btn, body.style-f2f #gbar, body.style-f2f #dlg, body.style-f2f #gpanel { background: rgba(8, 10, 12, 0.82); border-color: rgba(190, 200, 205, 0.28); backdrop-filter: none; -webkit-backdrop-filter: none; }

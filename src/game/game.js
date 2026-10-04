@@ -141,7 +141,8 @@ export function createGame(ctx) {
   const smallTalk = (a) => {
     const r = a.res, w = (getWeather && getWeather()) || 'clear';
     const lines = [pickR(hello[part()])];
-    lines.push(Math.random() < 0.5 ? pickR(weatherLine[w] || weatherLine.clear) : pickR(byJob[r.job] || byJob.local));
+    const gloom = w === 'clear' && document.body.classList.contains('style-f2f');
+    lines.push(Math.random() < 0.5 ? pickR(gloom ? ['Хмурый денёк. И туман какой-то… странный.', 'Тихо сегодня. Даже собаки не лают.', 'Небо как свинцовое — к ночи будет сыро.', 'Туман с утра не уходит, соседей не видно.'] : weatherLine[w] || weatherLine.clear) : pickR(byJob[r.job] || byJob.local));
     if (part() === 'night') lines.push('Идите-ка домой, ночью по селу собаки бегают.');
     return lines.join(' ');
   };
