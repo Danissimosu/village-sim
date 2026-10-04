@@ -252,7 +252,7 @@ export function createGame(ctx) {
   };
 
   // ---------- shop
-  const priceF = (k) => { const c = getClock(), idx = Object.keys(SELL).indexOf(k); const x = Math.sin((Math.floor(c.day) + 1) * 12.9898 + idx * 78.233) * 43758.5453; return 0.75 + 0.55 * (x - Math.floor(x)); };
+  const priceF = (k) => { const c = getClock(), idx = Object.keys(SELL).indexOf(k); const x = Math.sin((Math.floor(c.day) + 1) * 12.9898 + idx * 78.233) * 43758.5453; return (0.75 + 0.55 * (x - Math.floor(x))) * (Math.floor(c.day) % 7 === 5 ? 1.2 : 1); };   // Saturday = market day (+20 %)
   const sellPrice = (k) => Math.max(1, Math.round(SELL[k] * priceF(k)));
   const openShop = (shop) => {
     const h = hourNow(), open = h >= SHOP_OPEN && h < SHOP_CLOSE;
@@ -262,7 +262,7 @@ export function createGame(ctx) {
     let all = 0;
     for (const k of Object.keys(SELL)) if (S.inv[k] > 0) { const pr = sellPrice(k), f = priceF(k), tag = f > 1.1 ? ' ▲' : f < 0.9 ? ' ▼' : ''; all += pr * S.inv[k]; ch.push({ label: `Продать: ${ITEMS[k][1]} ${ITEMS[k][0]} ×${S.inv[k]} — ${pr * S.inv[k]} ₴ (${pr}/шт)${tag}`, fn: () => { addMoney(pr * S.inv[k]); addItem(k, -S.inv[k]); toast('Продано'); openShop(shop); } }); }
     if (Object.keys(SELL).filter((k) => S.inv[k] > 0).length > 1) ch.push({ label: `Продать всё — ${all} ₴`, fn: () => { let t = 0; for (const k of Object.keys(SELL)) if (S.inv[k] > 0) { t += sellPrice(k) * S.inv[k]; addItem(k, -S.inv[k]); } addMoney(t); toast(`Продано на ${t} ₴`); openShop(shop); } });
-    say('Магазин «Любимівка»', `У вас ${S.money} ₴ · ▲ цена сегодня выше обычной, ▼ ниже`, 'Здравствуйте! Что желаете? Продукты принимаю по сегодняшним ценам.', ch);
+    say('Магазин «Любимівка»', `У вас ${S.money} ₴ · ${Math.floor(getClock().day) % 7 === 5 ? 'Суббота — базарный день, цены выше! · ' : ''}▲ выше обычной, ▼ ниже`, 'Здравствуйте! Что желаете? Продукты принимаю по сегодняшним ценам.', ch);
   };
 
   const plantMenu = (plot) => {
