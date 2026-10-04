@@ -84,7 +84,7 @@ async function boot() {
   setLoad(0.25, 'Загрузка PBR-текстур…');
   const sky = new Sky(renderer, scene);
   const [materials] = await Promise.all([
-    loadMaterials(renderer, Q.aniso, (p) => setLoad(0.25 + p * 0.4, 'Загрузка PBR-текстур…')),
+    loadMaterials(renderer, Q.aniso, (p) => setLoad(0.25 + p * 0.4, 'Загрузка PBR-текстур…'), { lite: params.get('lite') ? params.get('lite') === '1' : isTouch && !((navigator.deviceMemory || 0) >= 6) }),
     sky.load(),
   ]);
   await tick();

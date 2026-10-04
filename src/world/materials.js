@@ -8,12 +8,16 @@ export const TEX_SIZE = 1024;
 
 const loadImg = (url) => new Promise((res, rej) => { const i = new Image(); i.decoding = 'async'; i.onload = () => res(i); i.onerror = () => rej(new Error('img ' + url)); i.src = url; });
 
-export async function loadMaterials(renderer, aniso, progress = () => {}) {
+export async function loadMaterials(renderer, aniso, progress = () => {}, opts = {}) {
+  const lite = !!opts.lite;   // phones: normal/ARM maps at 512 px (saves ~80 MB of GPU memory, diffuse stays 1K)
   const loader = new THREE.TextureLoader();
   const maxAniso = Math.min(aniso, renderer.capabilities.getMaxAnisotropy());
-  const tex = (url, srgb) => new Promise((res, rej) => loader.load(url, (t) => {
+  const tex = (url, srgb) => (lite && !srgb ? loadImg(url).then((img) => {
+    const c = document.createElement('canvas'); c.width = c.height = TEX_SIZE / 2; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = maxAniso; return t;
+  }) : new Promise((res, rej) => loader.load(url, (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = maxAniso; if (srgb) t.colorSpace = THREE.SRGBColorSpace; res(t);
-  }, undefined, rej));
+  }, undefined, rej)));
   const mats = {};
   let done = 0; const total = SETS.length + 1;
   await Promise.all(SETS.map(async (name) => {
@@ -25,9 +29,9 @@ export async function loadMaterials(renderer, aniso, progress = () => {}) {
 
   // terrain: 3 texture arrays (diffuse sRGB, normal, ARM), one layer per ground type.
   const arrays = {};
-  const N = TEX_SIZE, layerBytes = N * N * 4;
-  const cv = document.createElement('canvas'); cv.width = cv.height = N; const cx = cv.getContext('2d', { willReadFrequently: true });
+  const cv = document.createElement('canvas'); const cx = cv.getContext('2d', { willReadFrequently: true });
   for (const [key, suffix] of [['diff', 'diff'], ['nor', 'nor'], ['arm', 'arm']]) {
+    const N = lite && key !== 'diff' ? TEX_SIZE / 2 : TEX_SIZE, layerBytes = N * N * 4; cv.width = cv.height = N;
     const data = new Uint8Array(layerBytes * TERRAIN_LAYERS.length);
     const imgs = await Promise.all(TERRAIN_LAYERS.map((l) => loadImg(`${BASE}tex/${l}_${suffix}.webp`)));
     imgs.forEach((img, li) => {
