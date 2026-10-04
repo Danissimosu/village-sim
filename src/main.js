@@ -298,7 +298,7 @@ async function boot() {
     wx.update(dt, time, camera, 1 - sky.state.day);
     if (!audio.muted && time - audT > 0.5) { audT = time; let dogNear = false, cowNear = false; for (const a of fauna.animals) { const d = Math.hypot(a.x - player.pos.x, a.z - player.pos.z); if (d < 14) { if (a.kind === 'dog') dogNear = true; else if (a.kind === 'cow') cowNear = true; } } audio._st = { hour, night: 1 - sky.state.day, rain: wx.rain, fog: wx.fog, dogNear, cowNear }; }
     if (audio._st) audio.update(dt, audio._st);
-    details.update(1 - sky.state.day);
+    details.update(1 - sky.state.day); yardExtras.update(camera.position);
     ambient.update(dt, time, player.pos, hour, 1 - sky.state.day, weather);
     npcR.update(camera, Q, time);
     if (time - lastSign > 0.5) { lastSign = time; signs.update(player.pos); hud.setPop(pop.size, sim.stats.outside); }

@@ -1,12 +1,13 @@
 // Gameplay layer: money, inventory, daily clock bar, talking to villagers (Russian lines), a few small quests, shop, save/load.
 import * as THREE from 'three';
+import { distPointSeg } from '../util.js';
 
 const SAVE_KEY = 'lyubimivka-save-v1';
-const ITEMS = { eggs: ['Яйца', '🥚'], milk: ['Молоко', '🥛'], bread: ['Хлеб', '🍞'], apples: ['Яблоки', '🍎'] };
-const BUY = { bread: 25, milk: 45 }, SELL = { eggs: 8, milk: 35, apples: 5 };
+const ITEMS = { eggs: ['Яйца', '🥚'], milk: ['Молоко', '🥛'], bread: ['Хлеб', '🍞'], apples: ['Яблоки', '🍎'], fish: ['Рыба', '🐟'] };
+const BUY = { bread: 25, milk: 45 }, SELL = { eggs: 8, milk: 35, apples: 5, fish: 30 };
 const SHOP_OPEN = 8, SHOP_CLOSE = 20;
 const plural = (n, a, b, c) => { const m = n % 100, d = n % 10; return m >= 11 && m <= 14 ? c : d === 1 ? a : d >= 2 && d <= 4 ? b : c; };
-const fresh = () => ({ v: 1, money: 40, inv: { eggs: 0, milk: 0, bread: 0, apples: 0 }, q: { bread: 0, eggs: 0, milk: 0, pets: 0, petsN: 0 }, talked: {}, treeDay: {}, day: 0, hour: 10.5, pos: null });
+const fresh = () => ({ v: 1, money: 40, inv: { eggs: 0, milk: 0, bread: 0, apples: 0, fish: 0 }, q: { bread: 0, eggs: 0, milk: 0, fish: 0, pets: 0, petsN: 0 }, talked: {}, treeDay: {}, day: 0, hour: 10.5, pos: null });
 
 export function createGame(ctx) {
   const { world, nav, sim, fauna, player, layout, camera, hud, getClock, setClock, getWeather } = ctx;
@@ -28,6 +29,7 @@ export function createGame(ctx) {
     bread: pickG((a) => a.res.job === 'retired' && a.res.female),
     eggs: pickG((a) => a.res.female && a.res.age >= 35 && a.res.job !== 'retired' && a.res.job !== 'shop' && a.res.job !== 'teacher'),
     milk: pickG((a) => !a.res.female && a.res.age >= 50),
+    fish: pickG((a) => !a.res.female && a.res.age >= 30 && a.res.age < 75 && a.res.job !== 'shop' && a.res.job !== 'teacher'),
   };
   const fullName = (a) => `${a.res.first} ${a.res.last}`;
   const shopDoor = (from) => { let best = null, bd = 1e9; for (const s of nav.shops) { const d = Math.hypot(s.door.x - from.x, s.door.z - from.z); if (d < bd) { bd = d; best = s; } } return best; };
@@ -66,6 +68,7 @@ export function createGame(ctx) {
     out.push({ title: 'Хлеб для соседки', st: S.q.bread, text: ['Поговорите с ' + where(g.bread), S.inv.bread > 0 ? 'Хлеб куплен — отнесите ' + where(g.bread) : 'Купите хлеб в магазине (25 ₴, с 8 до 20) и отнесите ' + where(g.bread), 'Выполнено ✔'] });
     out.push({ title: 'Яйца к приезду гостей', st: S.q.eggs, text: ['Поговорите с ' + where(g.eggs), `Соберите 4 яйца у кур во дворах (${Math.min(4, S.inv.eggs)}/4) и отнесите ${where(g.eggs)}`, 'Выполнено ✔'] });
     out.push({ title: 'Парное молоко', st: S.q.milk, text: ['Поговорите с ' + where(g.milk), 'Подоите корову во дворе и отнесите банку молока ' + where(g.milk), 'Выполнено ✔'] });
+    out.push({ title: 'Уха на ужин', st: S.q.fish, text: ['Поговорите с ' + where(g.fish), `Наловите 3 рыбы на пруду — встаньте у берега и жмите «Закинуть удочку» (${Math.min(3, S.inv.fish)}/3), отнесите ${where(g.fish)}`, 'Выполнено ✔'] });
     out.push({ title: 'Друг животных', st: S.q.pets >= 1 ? 2 : 1, text: ['', `Погладьте 3 собак и 3 кошек (${Math.min(3, S.q.petsD || 0)} соб., ${Math.min(3, S.q.petsC || 0)} кош.)`, 'Выполнено ✔'] });
     return out;
   };
@@ -132,6 +135,7 @@ export function createGame(ctx) {
     if (a === giver.bread) return questBread(a, name, sub);
     if (a === giver.eggs) return questEggs(a, name, sub);
     if (a === giver.milk) return questMilk(a, name, sub);
+    if (a === giver.fish) return questFish(a, name, sub);
     const open = hourNow() >= SHOP_OPEN && hourNow() < SHOP_CLOSE;
     say(name, sub, smallTalk(a), [{ label: 'Как дела в селе?', fn: () => say(name, sub, pickR(['Живём потихоньку. Главное — чтобы было тихо.', 'По-разному. Но село у нас красивое, пруды, сады…', open ? 'Магазин открыт, если что нужно — сходите.' : 'Магазин уже закрыт, до восьми утра ждать.']), []) }]);
   };
@@ -157,6 +161,14 @@ export function createGame(ctx) {
     } else say(name, sub, smallTalk(a), []);
   };
 
+  const questFish = (a, name, sub) => {
+    if (S.q.fish === 0) say(name, sub, 'Жена уху просит, а рыбалка у меня не ладится — спина. Сходишь на пруд? Удочку я тебе одолжу. Три рыбины — и заплачу сто гривен.', [{ label: 'Согласиться', fn: () => { S.q.fish = 1; dirty = true; toast('Новое задание: Уха на ужин'); closeDlg(); } }]);
+    else if (S.q.fish === 1) {
+      if (S.inv.fish >= 3) say(name, sub, 'Вот это улов! Карась, как на подбор. Держи сто гривен.', [{ label: 'Отдать 3 рыбы', fn: () => { addItem('fish', -3); addMoney(100); S.q.fish = 2; toast('Задание выполнено: +100 ₴'); closeDlg(); } }]);
+      else say(name, sub, `Пока рыб ${S.inv.fish} из 3. Лучше всего клюёт утром и вечером, у берега.`, []);
+    } else say(name, sub, smallTalk(a), []);
+  };
+
   // ---------- shop
   const openShop = (shop) => {
     const h = hourNow(), open = h >= SHOP_OPEN && h < SHOP_CLOSE;
@@ -171,6 +183,20 @@ export function createGame(ctx) {
   let cand = null, lastScan = 0, tStart = performance.now();
   const apples = layout.trees.filter((t) => t.sp === 'apple');
   const nearestApple = (px, pz) => { let best = null, bd = 2.8; for (const t of apples) { const d = Math.hypot(t.x - px, t.z - pz); if (d < bd) { bd = d; best = t; } } return best; };
+  const pondDist = (px, pz) => {
+    let best = 1e9;
+    for (const p of world.ponds || []) { if (!p.bb || px < p.bb.x0 - 8 || px > p.bb.x1 + 8 || pz < p.bb.z0 - 8 || pz > p.bb.z1 + 8) continue; const q = p.pts; for (let i = 0, j = q.length - 1; i < q.length; j = i++) best = Math.min(best, distPointSeg(px, pz, q[j][0], q[j][1], q[i][0], q[i][1])); }
+    return best;
+  };
+  let fishCool = 0, fishWait = 0;
+  const fishNow = () => {
+    const t = performance.now(); if (fishCool > t) return toast('Поплавок ещё качается… подождите');
+    fishCool = t + 6000; const h = hourNow(), good = h < 9 || h > 17, wet = (getWeather && getWeather()) === 'rain';
+    const p = 0.45 + (good ? 0.2 : 0) + (wet ? 0.1 : 0);
+    toast('🎣 Закинули удочку…');
+    setTimeout(() => { if (Math.random() < p) { addItem('fish', 1); toast('🐟 Поймали рыбу!'); } else toast('Сорвалась…'); }, 1500);
+  };
+  void fishWait;
   const scan = () => {
     const px = player.pos.x, pz = player.pos.z; let best = null, bw = 1e9;
     const offer = (d, w, label, fn, kind) => { if (d + w < bw) { bw = d + w; best = { label, fn, kind }; } };
@@ -184,12 +210,13 @@ export function createGame(ctx) {
     const ap = nearestApple(px, pz);
     if (ap) { const k = Math.round(ap.x) + ',' + Math.round(ap.z); offer(Math.hypot(ap.x - px, ap.z - pz), 0.5, '🍎 Собрать яблоки', () => { const c = getClock(), absDay = c.day; if (S.treeDay[k] === absDay) return toast('Яблоки на этой яблоне уже собраны'); S.treeDay[k] = absDay; const n = 2 + Math.floor(Math.random() * 3); addItem('apples', n); toast(`+${n} ${plural(n, 'яблоко', 'яблока', 'яблок')}`); }, 't');
     }
+    if (S.q.fish >= 1 || S.inv.fish > 0 || performance.now() - tStart > 0) { const pd = pondDist(px, pz); if (pd < 3.2) offer(pd, 0.8, '🎣 Закинуть удочку', () => fishNow(), 'f'); }
     for (const s of nav.shops) { const d = Math.hypot(s.door.x - px, s.door.z - pz); if (d < 5.5) offer(d, -1, '🛒 В магазин', () => openShop(s), 's'); }
     for (const a of sim.actors) {
       if (a.hidden) continue; const d = Math.hypot(a.x - px, a.z - pz); if (d > 3.8) continue;
       offer(d, 0.2, `💬 Поговорить: ${a.res.first}`, () => talkTo(a), 'n');
     }
-    for (const key of ['bread', 'eggs', 'milk']) { const g = giver[key]; if (!g || !g.hidden) continue; const d = Math.hypot(g.house.door.x - px, g.house.door.z - pz); if (d < 3.6) offer(d, 0.5, `🚪 Постучать: ${g.res.first}`, () => talkTo(g), 'd'); }
+    for (const key of ['bread', 'eggs', 'milk', 'fish']) { const g = giver[key]; if (!g || !g.hidden) continue; const d = Math.hypot(g.house.door.x - px, g.house.door.z - pz); if (d < 3.6) offer(d, 0.5, `🚪 Постучать: ${g.res.first}`, () => talkTo(g), 'd'); }
     cand = best;
     if (best && !dlgOpen) { act.style.display = 'block'; act.textContent = best.label + '  [F]'; } else act.style.display = 'none';
   };
@@ -206,6 +233,7 @@ export function createGame(ctx) {
     if (g.bread) { if (S.q.bread === 0 || (S.q.bread === 1 && S.inv.bread > 0)) t.push({ ...d(g.bread), ic: S.q.bread === 0 ? '❗' : '✔' }); else if (S.q.bread === 1) { const s = shopDoor(player.pos); if (s) t.push({ x: s.door.x, z: s.door.z, ic: '🛒' }); } }
     if (g.eggs && (S.q.eggs === 0 || (S.q.eggs === 1 && S.inv.eggs >= 4))) t.push({ ...d(g.eggs), ic: S.q.eggs === 0 ? '❗' : '✔' });
     if (g.milk && (S.q.milk === 0 || (S.q.milk === 1 && S.inv.milk > 0))) t.push({ ...d(g.milk), ic: S.q.milk === 0 ? '❗' : '✔' });
+    if (g.fish && (S.q.fish === 0 || (S.q.fish === 1 && S.inv.fish >= 3))) t.push({ ...d(g.fish), ic: S.q.fish === 0 ? '❗' : '✔' });
     return t.map((q) => ({ ...q, dist: Math.hypot(q.x - player.pos.x, q.z - player.pos.z) })).sort((a, b) => a.dist - b.dist).slice(0, 2);
   };
   let lastMark = 0;

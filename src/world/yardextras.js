@@ -13,8 +13,8 @@ export class YardExtras {
   constructor(scene, world, layout, rasters) {
     this.group = new THREE.Group(); this.group.name = 'yardextras'; scene.add(this.group);
     const houses = layout.buildings.filter((b) => b.kind === 'house' && !b.civic && !b.hero && !b.osm && b.style && Math.abs(b.x) < 540 && Math.abs(b.z) < 540);
-    const chunks = new Map(); let items = 0;
-    const getChunk = (x, z) => { const k = Math.floor(x / 300) + ',' + Math.floor(z / 300); let c = chunks.get(k); if (!c) { c = new VB(); chunks.set(k, c); } return c; };
+    this.chunks = []; const chunks = new Map(); let items = 0;
+    const getChunk = (x, z) => { const k = Math.floor(x / 150) + ',' + Math.floor(z / 150); let c = chunks.get(k); if (!c) { c = new VB(); chunks.set(k, c); } return c; };
     const free = (x, z) => !rasters.blockedAt(x, z);
     for (const b of houses) {
       const r = mulberry32(((b.style.seed ^ 0x6a09e667) >>> 0) || 1), R = () => r();
@@ -88,11 +88,15 @@ export class YardExtras {
       }
     }
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
-    this.tris = 0;
+    this.tris = 0; this.chunks = this.chunks || [];
     for (const vb of chunks.values()) {
       if (!vb.p.length) continue;
-      const m = new THREE.Mesh(vb.build(), mat); m.receiveShadow = true; m.castShadow = false; this.group.add(m); this.tris += vb.p.length / 9;
+      const m = new THREE.Mesh(vb.build(), mat); m.receiveShadow = true; m.castShadow = false; this.group.add(m); m.geometry.computeBoundingSphere(); this.chunks.push(m); this.tris += vb.p.length / 9;
     }
     this.items = items;
+  }
+  // hide far chunks (the items are tiny): keeps triangles down on phones
+  update(cam, maxDist = 230) {
+    for (const m of this.chunks) { const c = m.geometry.boundingSphere; const d = Math.hypot(c.center.x - cam.x, c.center.z - cam.z) - c.radius; m.visible = d < maxDist; }
   }
 }
