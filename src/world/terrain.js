@@ -87,8 +87,21 @@ vec3 decodeN(vec3 t) { vec3 n = t * 2.0 - 1.0; return n; }`)
       .replace('#include <aomap_fragment>', 'reflectedLight.indirectDiffuse *= gAO;');
   };
   mat.customProgramCacheKey = () => 'terrain-splat-v1';
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
-  mesh.userData.splat = splatTex; mesh.userData.U = U;
+  // Split into 7x7 tiles that share the vertex buffers but have their own index buffer + bounding sphere, so the frustum culls them
+  // (a single 245k-triangle mesh was always drawn in full).
+  const idx = geo.index.array, T = 7, per = Math.ceil(SEG / T), mesh = new THREE.Group(), P = geo.attributes.position, cell = TERRAIN_SIZE / SEG;
+  for (let tj = 0; tj < T; tj++) for (let ti = 0; ti < T; ti++) {
+    const i0 = ti * per, i1 = Math.min(SEG, i0 + per), j0 = tj * per, j1 = Math.min(SEG, j0 + per);
+    if (i1 <= i0 || j1 <= j0) continue;
+    const arr = new Uint32Array((i1 - i0) * (j1 - j0) * 6); let o = 0;
+    for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) { const f = (j * SEG + i) * 6; for (let k = 0; k < 6; k++) arr[o++] = idx[f + k]; }
+    let y0 = 1e9, y1 = -1e9;
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const y = P.getY(j * (SEG + 1) + i); if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', P); g.setAttribute('normal', geo.attributes.normal); g.setAttribute('uv', geo.attributes.uv); g.setIndex(new THREE.BufferAttribute(arr, 1));
+    const cx = -TERRAIN_SIZE / 2 + (i0 + i1) / 2 * cell, cz = -TERRAIN_SIZE / 2 + (j0 + j1) / 2 * cell, hw = (i1 - i0) * cell / 2, hd = (j1 - j0) * cell / 2, hy = (y1 - y0) / 2;
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx, (y0 + y1) / 2, cz), Math.sqrt(hw * hw + hd * hd + hy * hy) + 1);
+    const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.matrixAutoUpdate = false; mesh.add(m);
+  }
+  mesh.material = mat; mesh.userData.splat = splatTex; mesh.userData.U = U;
   return mesh;
 }
