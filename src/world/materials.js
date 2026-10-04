@@ -9,6 +9,7 @@ export const TEX_SIZE = 1024;
 const loadImg = (url) => new Promise((res, rej) => { const i = new Image(); i.decoding = 'async'; i.onload = () => res(i); i.onerror = () => rej(new Error('img ' + url)); i.src = url; });
 
 export async function loadMaterials(renderer, aniso, progress = () => {}, opts = {}) {
+  const skipNA = !!opts.skipNormals;   // lo-fi style: normal/ARM maps are not even downloaded until the realistic look is requested (loadFullDetail)
   const lite = !!opts.lite;   // phones: normal/ARM maps at 512 px (saves ~80 MB of GPU memory, diffuse stays 1K)
   const loader = new THREE.TextureLoader();
   const maxAniso = Math.min(aniso, renderer.capabilities.getMaxAnisotropy());
@@ -21,9 +22,9 @@ export async function loadMaterials(renderer, aniso, progress = () => {}, opts =
   const mats = {};
   let done = 0; const total = SETS.length + 1;
   await Promise.all(SETS.map(async (name) => {
-    const [d, n, a] = await Promise.all([tex(`${BASE}tex/${name}_diff.webp`, true), tex(`${BASE}tex/${name}_nor.webp`, false), tex(`${BASE}tex/${name}_arm.webp`, false)]);
+    const [d, n, a] = await Promise.all([tex(`${BASE}tex/${name}_diff.webp`, true), skipNA ? null : tex(`${BASE}tex/${name}_nor.webp`, false), skipNA ? null : tex(`${BASE}tex/${name}_arm.webp`, false)]);
     const roof = name.startsWith('roof');
-    mats[name] = new THREE.MeshStandardMaterial({ map: d, normalMap: n, aoMap: a, roughnessMap: a, roughness: 1, metalness: 0, vertexColors: true, side: roof ? THREE.DoubleSide : THREE.FrontSide, normalScale: new THREE.Vector2(1, 1) });
+    mats[name] = new THREE.MeshStandardMaterial({ map: d, ...(skipNA ? {} : { normalMap: n, aoMap: a, roughnessMap: a }), roughness: skipNA ? 0.92 : 1, metalness: 0, vertexColors: true, side: roof ? THREE.DoubleSide : THREE.FrontSide, normalScale: new THREE.Vector2(1, 1) });
     progress(++done / total);
   }));
 
@@ -31,6 +32,11 @@ export async function loadMaterials(renderer, aniso, progress = () => {}, opts =
   const arrays = {};
   const cv = document.createElement('canvas'); const cx = cv.getContext('2d', { willReadFrequently: true });
   for (const [key, suffix] of [['diff', 'diff'], ['nor', 'nor'], ['arm', 'arm']]) {
+    if (skipNA && key !== 'diff') { // flat placeholders (1x1 per layer) – replaced by loadFullDetail()
+      const L = TERRAIN_LAYERS.length, d1 = new Uint8Array(4 * L); for (let l = 0; l < L; l++) d1.set(key === 'nor' ? [128, 128, 255, 255] : [255, 235, 0, 255], l * 4);
+      const t = new THREE.DataArrayTexture(d1, 1, 1, L); t.format = THREE.RGBAFormat; t.type = THREE.UnsignedByteType; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+      arrays[key] = t; progress(Math.min(0.99, ++done / total)); continue;
+    }
     const N = lite && key !== 'diff' ? TEX_SIZE / 2 : TEX_SIZE, layerBytes = N * N * 4; cv.width = cv.height = N;
     const data = new Uint8Array(layerBytes * TERRAIN_LAYERS.length);
     const imgs = await Promise.all(TERRAIN_LAYERS.map((l) => loadImg(`${BASE}tex/${l}_${suffix}.webp`)));
@@ -48,6 +54,27 @@ export async function loadMaterials(renderer, aniso, progress = () => {}, opts =
     progress(Math.min(0.99, ++done / total + 0.1 * (key === 'arm')));
   }
   return { mats, arrays };
+}
+
+// Loads the normal / AO-roughness maps skipped by loadMaterials({ skipNormals }) into materials._full (applied by setLoFiMaterials when leaving the lo-fi look).
+export async function loadFullDetail(materials, aniso, lite) {
+  if (materials._full || materials._fullBusy) return materials._fullBusy;
+  materials._fullBusy = (async () => {
+    const loader = new THREE.TextureLoader(), full = { mats: {}, arrays: {} };
+    const tex = (url) => (lite ? loadImg(url).then((img) => { const c = document.createElement('canvas'); c.width = c.height = TEX_SIZE / 2; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; return t; })
+      : new Promise((res, rej) => loader.load(url, (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; res(t); }, undefined, rej)));
+    await Promise.all(SETS.map(async (name) => { const [n, a] = await Promise.all([tex(`${BASE}tex/${name}_nor.webp`), tex(`${BASE}tex/${name}_arm.webp`)]); full.mats[name] = { nor: n, arm: a }; }));
+    const N = lite ? TEX_SIZE / 2 : TEX_SIZE, layerBytes = N * N * 4, cv = document.createElement('canvas'); cv.width = cv.height = N; const cx = cv.getContext('2d', { willReadFrequently: true });
+    for (const key of ['nor', 'arm']) {
+      const data = new Uint8Array(layerBytes * TERRAIN_LAYERS.length);
+      const imgs = await Promise.all(TERRAIN_LAYERS.map((l) => loadImg(`${BASE}tex/${l}_${key}.webp`)));
+      imgs.forEach((img, li) => { cx.clearRect(0, 0, N, N); cx.drawImage(img, 0, 0, N, N); const px = cx.getImageData(0, 0, N, N).data; for (let y = 0; y < N; y++) data.set(px.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), li * layerBytes + y * N * 4); });
+      const t = new THREE.DataArrayTexture(data, N, N, TERRAIN_LAYERS.length); t.format = THREE.RGBAFormat; t.type = THREE.UnsignedByteType; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = aniso; t.needsUpdate = true;
+      full.arrays[key] = t;
+    }
+    materials._full = full;
+  })();
+  try { await materials._fullBusy; } finally { materials._fullBusy = null; }
 }
 
 export function setAnisotropy(materials, level) {

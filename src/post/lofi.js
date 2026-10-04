@@ -118,6 +118,8 @@ export function setLoFiMaterials(state, scene, materials, terrain, on) {
   } else {
     for (const [m, k] of state.saved) { m.map = k.map; m.normalMap = k.normalMap; m.aoMap = k.aoMap; m.roughnessMap = k.roughnessMap; m.bumpMap = k.bumpMap; m.flatShading = k.flat; if (k.rough !== undefined) m.roughness = k.rough; m.needsUpdate = true; }
     state.saved.clear();
-    if (U && state.terr) { U.tDiff.value = state.terr.diff; U.tNor.value = state.terr.nor; U.tArm.value = state.terr.arm; state.terr = null; }
+    const F = materials._full;   // normal/AO maps that were not loaded at boot (lo-fi start)
+    if (F) for (const name of Object.keys(materials.mats)) { const m = materials.mats[name], f = F.mats[name]; if (f && !m.normalMap) { m.normalMap = f.nor; m.aoMap = f.arm; m.roughnessMap = f.arm; m.roughness = 1; m.needsUpdate = true; } }
+    if (U && state.terr) { U.tDiff.value = state.terr.diff; U.tNor.value = (F && F.arrays.nor) || state.terr.nor; U.tArm.value = (F && F.arrays.arm) || state.terr.arm; materials.arrays.nor = U.tNor.value; materials.arrays.arm = U.tArm.value; state.terr = null; }
   }
 }

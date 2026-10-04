@@ -7,7 +7,7 @@ import { loadWorldData } from './world/data.js';
 import { generateLayout } from './world/layout.js';
 import { buildRasters } from './world/splat.js';
 import { LoFiPost, setLoFiMaterials } from './post/lofi.js';
-import { loadMaterials, setAnisotropy, setTextureQuality } from './world/materials.js';
+import { loadMaterials, loadFullDetail, setAnisotropy, setTextureQuality } from './world/materials.js';
 import { buildTerrain } from './world/terrain.js';
 import { BuildingSet, addBuilding, addWell, makeExtraMaterials } from './world/buildings.js';
 import { buildFences, buildPoles, buildMast, buildRoadMarkings, buildSigns, buildBusStops, buildGates } from './world/props.js';
@@ -87,10 +87,11 @@ async function boot() {
   setLoad(0.18, 'Растеризация земли, дорог, полей…');
   const rasters = buildRasters(world, layout); await tick();
 
+  const liteTex = params.get('lite') ? params.get('lite') === '1' : isTouch && !((navigator.deviceMemory || 0) >= 6);
   setLoad(0.25, 'Загрузка PBR-текстур…');
   const sky = new Sky(renderer, scene);
   const [materials] = await Promise.all([
-    loadMaterials(renderer, Q.aniso, (p) => setLoad(0.25 + p * 0.4, 'Загрузка PBR-текстур…'), { lite: params.get('lite') ? params.get('lite') === '1' : isTouch && !((navigator.deviceMemory || 0) >= 6) }),
+    loadMaterials(renderer, Q.aniso, (p) => setLoad(0.25 + p * 0.4, 'Загрузка PBR-текстур…'), { lite: liteTex, skipNormals: styleKey === 'f2f' }),
     sky.load(),
   ]);
   await tick();
@@ -209,6 +210,7 @@ async function boot() {
     onGoto84: () => gotoHero84(),
   });
   applyQuality(qKey, true);
+  let pending2k = null;
   { // texture pack toggle: 1K (default) / 2K — offered on desktops and big-memory devices only; auto-on for clearly high-end desktops
     const mem = navigator.deviceMemory || 0, maxTex = renderer.capabilities.maxTextureSize;
     const capable = maxTex >= 8192 && (!isTouch || mem >= 6);
@@ -219,7 +221,7 @@ async function boot() {
     if (capable) hud.el('btns').insertBefore(tb, hud.el('btn-hide'));
     const apply = async (lv) => { tb.textContent = 'Текстуры: ' + (lv === '2k' ? '2K…' : '1K…'); try { const r = await setTextureQuality(materials, terrain, lv, Math.min(Q.aniso, renderer.capabilities.getMaxAnisotropy())); tb.textContent = 'Текстуры: ' + r.toUpperCase(); try { localStorage.setItem('lyubimivka-tex', r); } catch (e) { /* ignore */ } } catch (e) { console.warn('texture pack failed', e); tb.textContent = 'Текстуры: 1K'; } };
     tb.addEventListener('click', () => apply(materials._tq && materials._tq.level === '2k' ? '1k' : '2k'));
-    if (capable && want === '2k') setTimeout(() => apply('2k'), 2500);
+    if (capable && want === '2k') { pending2k = () => { pending2k = null; setTimeout(() => apply('2k'), 800); }; if (styleKey === 'real') setTimeout(() => { if (pending2k) pending2k(); }, 1700); }
   }
   if (params.get('hud') === '0') document.getElementById('hud').style.display = 'none';
   if (!auto) { document.getElementById('btn-auto').classList.remove('on'); document.getElementById('btn-auto').textContent = 'Пауза'; }
@@ -290,8 +292,11 @@ async function boot() {
     if (styleKey === 'f2f' && post) { post.u.uLift.value = 0.018 * sky.state.night; sky.uniforms.uLin.value = 1; post.render(scene, camera, performance.now() / 1000); sky.uniforms.uLin.value = 0; }
     else renderer.render(scene, camera);
   };
-  const applyStyle = (key, instant) => {
-    styleKey = key; const f = key === 'f2f';
+  let styleBusy = false;
+  const applyStyle = async (key, instant) => {
+    if (styleBusy) return; const f = key === 'f2f';
+    if (!f && !materials._full && materials.mats.plaster && !materials.mats.plaster.normalMap) { styleBusy = true; const b0 = document.getElementById('btn-style'); if (b0) b0.textContent = 'Загрузка текстур…'; try { await loadFullDetail(materials, Math.min(Q.aniso, renderer.capabilities.getMaxAnisotropy()), liteTex); } catch (e) { console.warn('detail textures failed', e); } styleBusy = false; }
+    styleKey = key;
     document.body.classList.toggle('style-f2f', f);
     if (f && !post) post = new LoFiPost(renderer);
     setLoFiMaterials(loState, scene, materials, terrain, f);
@@ -301,6 +306,7 @@ async function boot() {
     sky.setHour(hour, camera, 0, true);
     const b = document.getElementById('btn-style'); if (b) b.textContent = 'Стиль: ' + (f ? 'Fears to Fathom' : 'Реализм');
     const tb = document.getElementById('btn-tex'); if (tb) tb.style.display = f ? 'none' : '';
+    if (!f && pending2k) pending2k();
     try { localStorage.setItem('lyubimivka-style', key); } catch (e) { /* ignore */ }
   };
 
