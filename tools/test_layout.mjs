@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import { WorldData } from '../src/world/data.js';
+import { generateLayout } from '../src/world/layout.js';
+const json = JSON.parse(fs.readFileSync('public/data/village.json'));
+const hb = fs.readFileSync('public/data/heights.bin'); const ab = hb.buffer.slice(hb.byteOffset, hb.byteOffset + hb.byteLength);
+const w = new WorldData(json, ab);
+console.time('layout'); const L = generateLayout(w); console.timeEnd('layout');
+console.log(L.stats, 'poles', L.poles.length, 'paths', L.paths.length);
+console.log('ponds', w.ponds.map(p => [p.area|0, p.level.toFixed(1)]));
+console.log('h range', w.heightAt(0,0), w.heightAt(-600,-600), w.heightAt(600,600));
+fs.writeFileSync('data_raw/layout.json', JSON.stringify({b:L.buildings.map(b=>[b.x,b.z,b.w,b.d,b.rot,b.kind]),f:L.fences.map(f=>f.pts),g:L.gardens,t:L.trees.map(t=>[t.x,t.z])}));

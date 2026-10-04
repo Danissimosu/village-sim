@@ -1,0 +1,23 @@
+{
+  "name": "village-sim",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5173",
+    "data": "python3 tools/build_data.py",
+    "textures": "node tools/fetch_textures.mjs 1024"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "sharp": "^0.35.5",
+    "three": "^0.186.1",
+    "vite": "^8.3.2"
+  },
+  "type": "module"
+}
