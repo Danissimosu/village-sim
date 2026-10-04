@@ -10,6 +10,16 @@ export class Waters {
     this.normals = makeWaterNormals(256);
     this.cheapMat = new THREE.MeshPhysicalMaterial({ color: 0x1f3f3d, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.93, normalMap: this.normals, normalScale: new THREE.Vector2(0.25, 0.25), envMapIntensity: 1.6, clearcoat: 0, ior: 1.33, specularIntensity: 1 });
     this.cheapMat.normalMap.repeat.set(0.07, 0.07);
+    // two counter-moving ripple layers (hides the texture tiling) that calm down with distance (less shimmer on small screens)
+    this.wt = { value: 0 };
+    this.cheapMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uWT = this.wt;
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uWT;')
+        .replace('mapN.xy *= normalScale;', `vec3 mapN2 = texture2D(normalMap, vNormalMapUv * vec2(-2.63, 2.17) + vec2(uWT * 0.021, uWT * -0.017)).xyz * 2.0 - 1.0;
+        mapN.xy = (mapN.xy + mapN2.xy * 0.75) * 0.85;
+        mapN.xy *= normalScale * mix(1.25, 0.35, clamp(length(vViewPosition) / 140.0, 0.0, 1.0));`);
+    };
+    this.cheapMat.customProgramCacheKey = () => 'water-cheap-v2';
     this.ponds = [];
     this.reflectSize = 512;
     this.grassRef = null;
@@ -57,7 +67,7 @@ export class Waters {
     this.group.add(w); o.real = w; return w;
   }
   update(dt, px, pz) {
-    this.time += dt;
+    this.time += dt; this.wt.value = this.time;
     this.normals.offset.x = (this.time * 0.004) % 1; this.normals.offset.y = (this.time * 0.003) % 1;
     if (!this.reflectOn) return;
     // choose the nearest large pond within 160 m

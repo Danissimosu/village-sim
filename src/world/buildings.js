@@ -7,7 +7,7 @@ import { mulberry32, clamp } from '../util.js';
 import { makeWindowTextures, makeSignTexture } from './procedural.js';
 
 const UV = { plaster: 2.2, brick: 1.5, wood: 1.6, roofSlate: 1.7, roofClay: 1.4, roofRed: 1.5 };
-const CHUNK = 200;
+const CHUNK = 400;
 // Poly Haven albedos are fairly dark/neutral; vertex colours (tints) are boosted per material so painted walls read bright.
 const BOOST = { plaster: 1.75, brick: 1.2, wood: 2.3, roofSlate: 1.35, roofClay: 1.55, roofRed: 1.35 };
 

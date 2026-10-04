@@ -147,6 +147,7 @@ async function boot() {
   });
   void civicIds;
   const sim = new NpcSim(pop, nav, world, rasters, { hoursPerSecond: TIME_SPEED });
+  sim.setObstacles(treeList);
   const npcR = new NpcRenderer(scene, sim);
   const signs = new CivicSigns(scene, world, nav);
 

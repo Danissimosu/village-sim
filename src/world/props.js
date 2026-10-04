@@ -14,7 +14,7 @@ export function buildFences(world, layout, group) {
   const mats = {};
   for (const k of Object.keys(tex)) mats[k] = new THREE.MeshStandardMaterial({ map: tex[k], alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.85, vertexColors: true, alphaToCoverage: true });
   const builders = new Map();
-  const CH = 200;
+  const CH = 400;
   let tris = 0;
   for (const f of layout.fences) {
     if (f.kind === 'hero') continue;             // hand-built fence of the 35Б plot (collision only)

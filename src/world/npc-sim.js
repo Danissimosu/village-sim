@@ -27,6 +27,50 @@ export class NpcSim {
     // neighbours / nearest places per household (computed once)
     this._buildContexts();
     this.stats = { walking: 0, outside: 0, hidden: 0 };
+    this._grid = new Map(); this._tgrid = new Map();
+  }
+
+  /** register tree trunks (list of {x,z,sp,s}) so that villagers walk around them */
+  setObstacles(trees) {
+    const R = { oak: 0.5, birch: 0.3, apple: 0.4, pine: 0.4 };
+    this._tgrid.clear();
+    for (const t of trees) {
+      const r0 = R[t.sp]; if (!r0) continue;                       // bushes are passable
+      const k = Math.floor(t.x / 4) * 4099 + Math.floor(t.z / 4); let c = this._tgrid.get(k); if (!c) this._tgrid.set(k, (c = []));
+      c.push(t.x, t.z, r0 * Math.min(1.3, t.s || 1) + 0.28);
+    }
+  }
+
+  /** soft collision: push an outdoor villager away from the others and from tree trunks (never into blocked ground) */
+  _avoid(a, dt) {
+    const R = this.rasters; let px = 0, pz = 0;
+    const ci = Math.floor(a.x / 4), cj = Math.floor(a.z / 4);
+    if (this._tgrid.size) for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) {
+      const c = this._tgrid.get(i * 4099 + j); if (!c) continue;
+      for (let q = 0; q < c.length; q += 3) {
+        const dx = a.x - c[q], dz = a.z - c[q + 1], rr = c[q + 2], d2_ = dx * dx + dz * dz;
+        if (d2_ >= rr * rr) continue;
+        const d = Math.sqrt(d2_) || 1e-3; const f = (rr - d) / rr; px += (dx / d) * f * 2.4; pz += (dz / d) * f * 2.4;
+      }
+    }
+    const gi = Math.floor(a.x / 2), gj = Math.floor(a.z / 2); const rad = 0.42 + 0.15 * a.scale;
+    for (let i = gi - 1; i <= gi + 1; i++) for (let j = gj - 1; j <= gj + 1; j++) {
+      const c = this._grid.get(i * 8209 + j); if (!c) continue;
+      for (const o of c) {
+        if (o === a) continue;
+        const dx = a.x - o.x, dz = a.z - o.z, rr = rad + 0.42 + 0.15 * o.scale, d2_ = dx * dx + dz * dz;
+        if (d2_ >= rr * rr) continue;
+        const d = Math.sqrt(d2_);
+        let ux, uz; if (d < 1e-3) { const t = (a.id * 2.399) % 6.283; ux = Math.cos(t); uz = Math.sin(t); } else { ux = dx / d; uz = dz / d; }
+        const f = (rr - d) / rr; px += ux * f * 1.9; pz += uz * f * 1.9;
+        // walkers heading towards each other sidestep to their right
+        if (a.walking && o.walking) { px += -uz * f * 0.6; pz += ux * f * 0.6; }
+      }
+    }
+    const m = Math.hypot(px, pz); if (m < 1e-3) return;
+    const mv = Math.min(m, 2.2) * Math.min(dt, 0.25), nx = a.x + (px / m) * mv, nz = a.z + (pz / m) * mv;
+    if (R.blockedAt(nx, nz) && !R.blockedAt(a.x, a.z)) return;
+    a.x = nx; a.z = nz; a.y = this.world.heightAt(nx, nz);
   }
 
   _makeActor(r) {
@@ -84,12 +128,17 @@ export class NpcSim {
     if (first || (this._snapAt && now >= this._snapAt)) { this._snapAt = 0; this.snapAll(); }
     this.routeBudget = 10; this._frame++;
     let walking = 0, outside = 0;
+    const grid = this._grid; grid.clear();
+    for (const a of this.actors) {   // spatial hash of villagers standing / walking outdoors near the observer
+      if (a.hidden) continue; const dx = a.x - cam.x, dz = a.z - cam.z; if (dx * dx + dz * dz > 130 * 130) continue;
+      const k = Math.floor(a.x / 2) * 8209 + Math.floor(a.z / 2); let c = grid.get(k); if (!c) grid.set(k, (c = [])); c.push(a);
+    }
     for (const a of this.actors) {
       const dx = a.x - cam.x, dz = a.z - cam.z, dist2 = dx * dx + dz * dz;
       a.dist2 = dist2;
       const interval = a.hidden ? 0.6 : dist2 < 75 * 75 ? 0 : dist2 < 220 * 220 ? 0.07 : 0.4;
       a.acc += dt;
-      if (a.acc >= interval) { const step = a.acc; a.acc = a.hidden ? (a.id % 7) * 0.05 : 0; this._step(a, Math.min(step, 4)); }
+      if (a.acc >= interval) { const step = a.acc; a.acc = a.hidden ? (a.id % 7) * 0.05 : 0; this._step(a, Math.min(step, 4)); if (!a.hidden && dist2 < 130 * 130 && this.avoid !== false) this._avoid(a, step); }
       if (a.walking) walking++; if (!a.hidden) outside++;
     }
     this.stats.walking = walking; this.stats.outside = outside; this.stats.hidden = this.actors.length - outside;
