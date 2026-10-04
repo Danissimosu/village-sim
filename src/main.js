@@ -67,7 +67,7 @@ async function boot() {
   const dpr = window.devicePixelRatio || 1;
   let resScale = 1;
   const applyPR = () => {
-    if (styleKey === 'f2f') { renderer.setPixelRatio(F2F_PR[qKey] || 0.42); renderer.setSize(innerWidth, innerHeight); if (post) post.resize(); return; }
+    if (styleKey === 'f2f') { renderer.setPixelRatio(Math.max(0.22, (F2F_PR[qKey] || 0.42) * Math.max(0.7, resScale))); renderer.setSize(innerWidth, innerHeight); if (post) post.resize(); return; }
     let pr = Math.min(dpr, Q.pr) * resScale;
     const maxPix = isTouch ? 2.4e6 : 9.5e6; // cap total drawing-buffer pixels (keeps iOS happy / saves memory on phones)
     pr = Math.min(pr, Math.sqrt(maxPix / (innerWidth * innerHeight)));
@@ -347,7 +347,7 @@ async function boot() {
     frames++; accT += dt;
     if (accT >= 1) {
       fps = frames / accT; frames = 0; accT = 0;
-      hud.setFps(fps, `${Q.label} · ${(Math.min(dpr, Q.pr) * resScale).toFixed(2)}x · ${Math.round(info.render.calls)} dc · ${(info.render.triangles / 1000) | 0}k△`);
+      hud.setFps(fps, `${Q.label} · ${styleKey === 'f2f' ? renderer.domElement.width + '×' + renderer.domElement.height : (Math.min(dpr, Q.pr) * resScale).toFixed(2) + 'x'} · ${Math.round(info.render.calls)} dc · ${(info.render.triangles / 1000) | 0}k△`);
       const nowS = time;
       if (fps < 44 && resScale > 0.55 && nowS - lastRes > 2) { resScale = Math.max(0.55, resScale - 0.12); applyPR(); lastRes = nowS; goodT = 0; }
       else if (fps > 58) { goodT += 1; if (goodT >= 5 && resScale < 1 && nowS - lastRes > 2) { resScale = Math.min(1, resScale + 0.08); applyPR(); lastRes = nowS; goodT = 0; } }
