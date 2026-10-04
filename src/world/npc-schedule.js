@@ -76,7 +76,7 @@ export function buildPlan(actor, day, hps) {
     case 'school': {
       if (wk) {
         if (c.schoolMode === 'walk') { b.at(J(7.8, 8.0), 'school', c.school.door); b.leave(J(13.5, 14.4), 'home', home); }
-        else { b.at(J(7.0, 7.5), 'schoolbus', c.bus.spots[0], { place: { spots: c.bus.spots } }); b.leave(J(14.6, 15.4), 'home', home); }
+        else { b.at(J(7.0, 7.5), 'schoolbus', c.bus.spots[res.seed % c.bus.spots.length], { place: { spots: c.bus.spots } }); b.leave(J(14.6, 15.4), 'home', home); }
         if (rng() < 0.75) { const x = rng(); if (x < 0.4 && age >= 10) goForecourt(J(16, 17.5)); else if (x < 0.6 && c.pond) goPond(J(16, 17.5)); else if (x < 0.8) goVisit(J(16, 17.5)); else goGarden(J(16, 17.5)); }
         if (age >= 14 && rng() < 0.35) goForecourt(J(19.3, 20.2));
         goHome(J(21.4, 22.4));
@@ -88,7 +88,7 @@ export function buildPlan(actor, day, hps) {
     }
     case 'student': case 'commute': {
       if (wk && !(res.job === 'student' && day % 7 === 4 && rng() < 0.4)) {
-        b.at(J(6.6, 7.6), 'busride', c.bus.spots[0], { place: { spots: c.bus.spots } });
+        b.at(J(6.6, 7.6), 'busride', c.bus.spots[res.seed % c.bus.spots.length], { place: { spots: c.bus.spots } });
         b.leave(J(17.4, 19.2), 'home', home);
         if (rng() < 0.3) evening(19.6, 20.6);
         goHome(J(21.6, 22.8));

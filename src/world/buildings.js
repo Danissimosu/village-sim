@@ -26,10 +26,10 @@ export class BuildingSet {
       if (BOOST[mat]) { const f = BOOST[mat]; for (let i = 0; i < gb.c.length; i++) gb.c[i] *= f; }
       let material = materials.mats[mat] || extraMats[mat];
       if (!material && mat.startsWith('sign:')) {
-        material = extraMats[mat] = new THREE.MeshStandardMaterial({ map: makeSignTexture([{ text: mat.slice(5), size: mat.length > 16 ? 56 : 72 }], '#d92b2b', '#ffffff', true, 512, 128), roughness: 0.5 });
+        material = extraMats[mat] = new THREE.MeshStandardMaterial({ map: makeSignTexture([{ text: mat.slice(5), size: mat.length > 16 ? 56 : 72 }], mat === 'sign:ШКОЛА' ? '#1f4f93' : '#d92b2b', '#ffffff', true, 512, 128), roughness: 0.5 });
       }
       const m = new THREE.Mesh(gb.build(), material);
-      m.castShadow = !mat.startsWith('win') && mat !== 'sign'; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix();
+      m.castShadow = !mat.startsWith('win') && mat !== 'sign' && mat !== 'flag'; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix();
       group.add(m); count.tris += gb.i.length / 3; count.meshes++;
     }
     void opts; return count;
@@ -40,7 +40,9 @@ export function makeExtraMaterials() {
   const w = makeWindowTextures();
   const win = new THREE.MeshStandardMaterial({ map: w.map, roughness: 0.18, metalness: 0.0, envMapIntensity: 1.6 });
   const winLit = new THREE.MeshStandardMaterial({ map: w.map, emissiveMap: w.emissive, emissive: new THREE.Color(1, 0.8, 0.5), emissiveIntensity: 0, roughness: 0.25, metalness: 0 });
-  return { win, winLit, _w: w };
+  const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.05 });          // flat painted parts: awnings, columns, poles
+  const flag = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide });
+  return { win, winLit, paint, flag, _w: w };
 }
 
 const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
@@ -60,6 +62,9 @@ function groundStats(world, b, pad = 0.6) {
 
 export function addBuilding(S, world, b) {
   const st = b.style, rng = mulberry32(st.seed);
+  const civic = b.kind === 'house' ? b.civic : null;      // 'shop' | 'school': distinct models
+  if (civic === 'shop') Object.assign(st, { wall: 'plaster', wallTint: [1.0, 0.7, 0.4], roof: 'roofSlate', roofTint: [0.5, 0.85, 0.62], pitch: 11, hip: false, shutters: false, chimney: false });
+  if (civic === 'school') Object.assign(st, { wall: 'plaster', wallTint: [1.0, 0.93, 0.58], roof: 'roofRed', roofTint: [1, 1, 1], pitch: 21, hip: true, shutters: false, chimney: false });
   const c = Math.cos(b.rot), s = Math.sin(b.rot);
   const tf = (x, y, z) => [b.x + c * x - s * z, y, b.z + s * x + c * z];
   const hw = b.w / 2, hd = b.d / 2;
@@ -67,7 +72,7 @@ export function addBuilding(S, world, b) {
   const kind = b.kind;
   const y0 = hi + (kind === 'shed' ? 0.12 : 0.28);        // floor level
   const yb = lo - 0.45;                                    // foundation bottom
-  const levels = b.levels || 1;
+  const levels = civic === 'school' ? 2 : (b.levels || 1);
   const WH = kind === 'industrial' ? 6.4 : kind === 'shed' ? 2.3 : kind === 'barn' ? 3.0 : kind === 'kiosk' ? 2.7 : 2.65 * levels;
   const yt = y0 + WH;
   const wallMat = st.wall || 'plaster';
@@ -157,10 +162,59 @@ export function addBuilding(S, world, b) {
   };
   const doorCol = mul(shutterCol, 0.8);
   let doorInfo = null;
+  const Paint = S.get(b.x, b.z, 'paint');
+  const doorA0 = b.door ? (b.door[0] - b.x) * c + (b.door[1] - b.z) * s : 0;
+  const civicFront = (w) => {
+    const half = w.len / 2, dA = clamp(doorA0, -half + (civic === 'school' ? 3.2 : 2.6), half - (civic === 'school' ? 3.2 : 2.6));
+    doorInfo = { a: dA };
+    const q = (B, a0, a1, y1, y2, off, col = [1, 1, 1], uv = [[0, 0], [1, 0], [1, 1], [0, 1]]) => B.quad(wp(w, a0, y1, off), wp(w, a1, y1, off), wp(w, a1, y2, off), wp(w, a0, y2, off), uv, col, mid);
+    const bx = (B, a0, a1, y1, y2, o0, o1, col) => B.box((x, y, z) => wp(w, x, y, z), a0, y1, o0, a1, y2, o1, 1.5, col);
+    const step = (wd, d) => { const gh = world.heightAt(...(() => { const p = wp(w, dA, 0, d); return [p[0], p[2]]; })()); const by = Math.min(gh, y0 - 0.15) - 0.15;
+      bx(S.get(b.x, b.z, 'plaster'), dA - wd / 2, dA + wd / 2, by, y0 + 0.02, 0.02, d, [0.62, 0.6, 0.58]); };
+    if (civic === 'shop') {
+      const dark = [0.18, 0.2, 0.24];
+      // glass double door + storefront panes on both sides
+      q(Win, dA - 0.8, dA + 0.8, y0, y0 + 2.1, 0.04); bx(Paint, dA - 0.86, dA - 0.8, y0, y0 + 2.15, 0.02, 0.07, dark); bx(Paint, dA + 0.8, dA + 0.86, y0, y0 + 2.15, 0.02, 0.07, dark); bx(Paint, dA - 0.86, dA + 0.86, y0 + 2.1, y0 + 2.17, 0.02, 0.07, dark);
+      for (const [lo, hi] of [[-half + 0.45, dA - 1.15], [dA + 1.15, half - 0.45]]) {
+        const n2 = Math.max(1, Math.round((hi - lo) / 1.7)), sp = (hi - lo) / n2;
+        for (let k = 0; k < n2; k++) { const a0 = lo + sp * k + 0.04, a1 = lo + sp * (k + 1) - 0.04; q(rng() < 0.3 ? WinL : Win, a0, a1, y0 + 0.5, y0 + 2.0, 0.03); }
+        bx(Paint, lo, hi, y0 + 0.2, y0 + 0.5, 0.0, 0.09, [0.4, 0.38, 0.36]);
+      }
+      // striped awning over the whole shopfront + sign band above it
+      const aw = (a0, a1, col) => { const o = 1.15; Paint.quad(wp(w, a0, y0 + 2.5, 0.02), wp(w, a1, y0 + 2.5, 0.02), wp(w, a1, y0 + 2.12, o), wp(w, a0, y0 + 2.12, o), [[0, 0], [1, 0], [1, 1], [0, 1]], col, tf(0, y0 + 1, 0)); Paint.quad(wp(w, a0, y0 + 2.12, o), wp(w, a1, y0 + 2.12, o), wp(w, a1, y0 + 1.95, o), wp(w, a0, y0 + 1.95, o), [[0, 0], [1, 0], [1, 1], [0, 1]], col, tf(0, y0 + 1, 0.5)); };
+      const aL = -half + 0.2, aR = half - 0.2, ns = Math.max(4, Math.round((aR - aL) / 0.55)); for (let k = 0; k < ns; k++) aw(aL + ((aR - aL) * k) / ns, aL + ((aR - aL) * (k + 1)) / ns, k % 2 ? [0.95, 0.94, 0.9] : [0.1, 0.45, 0.2]);
+      const sg = S.get(b.x, b.z, 'sign:МАГАЗИН'); q(sg, dA - 1.9, dA + 1.9, yt - 0.12, yt + 0.55, 0.07);
+      // crates & a bench at the entrance
+      bx(Wood, dA + 1.5, dA + 2.3, y0, y0 + 0.5, 0.2, 0.8, [0.75, 0.55, 0.32]); bx(Wood, dA - 2.3, dA - 1.6, y0, y0 + 0.4, 0.3, 0.75, [0.7, 0.5, 0.3]);
+      step(2.0, 0.9);
+    } else {
+      const white = [0.96, 0.95, 0.9], dark = [0.2, 0.2, 0.24];
+      // windows on both floors (skipping the entrance column), 2.4 m grid
+      const n2 = Math.max(2, Math.floor((w.len - 0.8) / 2.4)), sp = w.len / n2;
+      for (let k = 0; k < n2; k++) {
+        const a = -half + sp * (k + 0.5);
+        for (let lv = 0; lv < 2; lv++) { if (Math.abs(a - dA) < 1.9) continue; addWin(w, a, y0 + lv * 2.65 + 1.55, 1.25, 1.55); bx(Paint, a - 0.7, a + 0.7, y0 + lv * 2.65 + 0.7, y0 + lv * 2.65 + 0.78, 0.0, 0.1, white); }
+      }
+      // portico with two columns, flat slab, double doors, steps; blue school plate on the upper wall
+      q(Wood, dA - 0.95, dA + 0.95, y0, y0 + 2.3, 0.04, [0.3, 0.22, 0.16], [[0, 0], [1.2, 0], [1.2, 1.4], [0, 1.4]]);
+      for (const sg2 of [-1, 1]) bx(Paint, dA + sg2 * 1.45 - 0.14, dA + sg2 * 1.45 + 0.14, y0, y0 + 3.0, 1.45, 1.73, white);
+      bx(Paint, dA - 1.8, dA + 1.8, y0 + 3.0, y0 + 3.22, 0.0, 1.9, white);
+      bx(Paint, dA - 1.8, dA + 1.8, y0 + 3.22, y0 + 3.32, 1.7, 1.9, [0.8, 0.2, 0.18]);
+      step(3.0, 1.55); step(2.6, 1.15);
+      const sg = S.get(b.x, b.z, 'sign:ШКОЛА'); q(sg, dA - 1.4, dA + 1.4, y0 + 3.55, y0 + 4.3, 0.07);
+      // flag pole with a blue-yellow flag
+      const fx = clamp(dA + 4.2, -half + 1.2, half - 1.2), fp = wp(w, fx, 0, 1.2), fgy = world.heightAt(fp[0], fp[2]);
+      Paint.cylinder(fp[0], fgy - 0.2, fp[2], 0.06, 0.04, 8.2, 6, 2, [0.78, 0.78, 0.8], true);
+      const Fl = S.get(b.x, b.z, 'flag'); const fy = fgy + 7.9;
+      const fq = (a0, a1, y1, y2, col) => Fl.quad(wp(w, fx + a0, y1, 1.2 + 0.0), wp(w, fx + a1, y1, 1.2), wp(w, fx + a1, y2, 1.2), wp(w, fx + a0, y2, 1.2), [[0, 0], [1, 0], [1, 1], [0, 1]], col, null);
+      fq(0.06, 1.35, fy - 0.45, fy, [0.1, 0.35, 0.8]); fq(0.06, 1.35, fy - 0.9, fy - 0.45, [1.0, 0.82, 0.1]);
+    }
+  };
   if (kind === 'house' || kind === 'kiosk') {
     for (const w of wallDefs) {
       const long = w.id === 'front' || w.id === 'back';
       const n = long ? Math.max(1, Math.floor((w.len - 0.6) / 2.7)) : (w.len >= 4.4 ? 1 : 0);
+      if (civic && w.id === 'front') { civicFront(w); continue; }
       const spacing = w.len / n;
       const doorSlot = w.id === 'front' ? Math.floor(n / 2) : -1;
       for (let k = 0; k < n; k++) {

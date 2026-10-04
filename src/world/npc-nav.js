@@ -259,8 +259,37 @@ export function buildNpcNav(world, layout, rasters, seed = 991) {
   };
   const shops = shopHouses.map((h) => ({ house: h, x: h.x, z: h.z, door: h.door, spots: lateralSpots(h, 6, 5) }));
   const school = { house: schoolH, x: schoolH.x, z: schoolH.z, door: schoolH.door, spots: lateralSpots(schoolH, 6, 6) };
-  // bus stops sit at the shops' forecourts (one per hub) so that nobody has to walk across the whole village
-  const busStops = shops.filter((q) => q.spots.length).map((q) => ({ x: q.x, z: q.z, node: q.spots[0].node, spots: q.spots }));
+  // bus stops stand on the trunk road (the highway south of the village): one per cluster of hubs, on the side facing the houses
+  const busStops = [];
+  { const samples = [];
+    for (const r of J.roads) {
+      if (r.kind !== 'trunk') continue;
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], b = r.pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue;
+        const dx = (b[0] - a[0]) / L, dz = (b[1] - a[1]) / L;
+        for (let d = 0; d < L; d += 6) { const x = a[0] + dx * d, z = a[1] + dz * d; if (Math.abs(x) < LIM - 40 && Math.abs(z) < LIM - 40) samples.push({ x, z, dx, dz, hw: r.w / 2 }); }
+      }
+    }
+    const order = cents.map((c, k) => ({ c, k, n: hubSize[k] })).sort((a, b) => b.n - a.n);
+    for (const { c } of order) {
+      if (!samples.length) break;
+      let near = null, nd = 1e18; for (const q of samples) { const d = (q.x - c[0]) ** 2 + (q.z - c[1]) ** 2; if (d < nd) { nd = d; near = q; } }
+      if (busStops.some((s) => Math.hypot(s.rx - near.x, s.rz - near.z) < 170)) continue;
+      const cands = samples.filter((q) => Math.hypot(q.x - near.x, q.z - near.z) < 80).sort((a, b) => Math.hypot(a.x - near.x, a.z - near.z) - Math.hypot(b.x - near.x, b.z - near.z));
+      for (const q of cands) {
+        let nx = -q.dz, nz = q.dx; if (nx * (c[0] - q.x) + nz * (c[1] - q.z) < 0) { nx = -nx; nz = -nz; }
+        const off = q.hw + 2.2, sx = q.x + nx * off, sz = q.z + nz * off;
+        let ok = true; for (const [u, w] of [[0, 0], [2, 0], [-2, 0], [0, 1], [0, -1], [2, 1], [-2, 1]]) { const px = sx + q.dx * u + nx * w, pz = sz + q.dz * u + nz * w; if (rasters.blockedAt(px, pz) || (rasters.maskAt(px, pz) & (M_WATER | M_FOREST))) { ok = false; break; } }
+        if (!ok) continue;
+        const spots = [];
+        for (let i = 0; i < 40 && spots.length < 6; i++) { const u = (rng() - 0.5) * 7, w = -0.9 + rng() * 2.2; addSpot(spots, sx + q.dx * u + nx * w, sz + q.dz * u + nz * w, 40); }
+        if (!spots.length) continue;
+        busStops.push({ x: sx, z: sz, node: spots[0].node, spots, rx: q.x, rz: q.z, tx: q.dx, tz: q.dz, nx, nz, rot: Math.atan2(q.dx, q.dz) });
+        break;
+      }
+    }
+    if (!busStops.length) for (const q of shops) if (q.spots.length) busStops.push({ x: q.x, z: q.z, node: q.spots[0].node, spots: q.spots, rx: q.x, rz: q.z, tx: 1, tz: 0, nx: 0, nz: 1, rot: 0, fallback: true });
+  }
   const kiosk = layout.buildings.find((b) => b.kind === 'kiosk');
   let post = null;
   if (kiosk) {

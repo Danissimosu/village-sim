@@ -9,7 +9,7 @@ import { buildRasters } from './world/splat.js';
 import { loadMaterials, setAnisotropy } from './world/materials.js';
 import { buildTerrain } from './world/terrain.js';
 import { BuildingSet, addBuilding, addWell, makeExtraMaterials } from './world/buildings.js';
-import { buildFences, buildPoles, buildMast, buildRoadMarkings, buildSigns } from './world/props.js';
+import { buildFences, buildPoles, buildMast, buildRoadMarkings, buildSigns, buildBusStops } from './world/props.js';
 import { Trees, Grass, planTrees } from './world/vegetation.js';
 import { Sky } from './world/sky.js';
 import { Waters } from './world/water.js';
@@ -85,6 +85,8 @@ async function boot() {
   setLoad(0.68, 'Рельеф…');
   const terrain = buildTerrain(world, rasters, materials.arrays); scene.add(terrain); await tick();
 
+  setLoad(0.72, 'Дороги и тропы жителей…');
+  const nav = buildNpcNav(world, layout, rasters); await tick();      // before the meshes: it decides which houses are the shops / the school
   setLoad(0.74, 'Дома, заборы, колодцы…');
   const extra = makeExtraMaterials();
   const S = new BuildingSet();
@@ -96,7 +98,7 @@ async function boot() {
   const fenceTris = buildFences(world, layout, props);
   const heroPoi = buildHeroPlot(scene, world, layout, materials, extra);
   const heroPoi84 = buildHero84(scene, world, layout, materials, extra);
-  buildPoles(world, layout, props); buildMast(world, layout, props); buildRoadMarkings(world, props);
+  buildPoles(world, layout, props); buildMast(world, layout, props); buildRoadMarkings(world, props); buildBusStops(world, nav, props);
   await tick();
 
   // ---- spawn: residential road point nearest the centre with several houses around
@@ -116,7 +118,7 @@ async function boot() {
 
   setLoad(0.84, 'Деревья и растительность…');
   const trees = new Trees(scene, Q);
-  const treeList = filterHeroTrees([heroPlan, heroPlan84], planTrees(world, layout, rasters));
+  const treeList = filterHeroTrees([heroPlan, heroPlan84], planTrees(world, layout, rasters)).filter((t) => !nav.busStops.some((b) => !b.fallback && Math.hypot(t.x - b.x, t.z - b.z) < 4.5));
   trees.build(world, treeList, rasters); await tick();
   const grass = new Grass(scene, world, rasters);
   grass.setQuality(Q);
@@ -128,7 +130,6 @@ async function boot() {
 
   // ---- villagers: navigation graph, population data, simulation, instanced renderer
   setLoad(0.96, 'Жители села…');
-  const nav = buildNpcNav(world, layout, rasters); await tick();
   if (heroPlan) { const hh = nav.houses.find((q) => q.id === heroPlan.houseIdx); if (hh) hh.address = HERO_ADDRESS; else console.warn('hero house is not navigable'); }
   if (heroPlan84) { const hh = nav.houses.find((q) => q.id === heroPlan84.houseIdx); if (hh) hh.address = HERO84_ADDRESS; else console.warn('hero84 house is not navigable'); }
   { // hero addresses are fixed: renumber any procedural neighbour that got the same number (+2 keeps the odd/even side)

@@ -139,3 +139,37 @@ export function buildSigns(world, spawn, group) {
   board.position.set(0, 2.25, 0.06); board.castShadow = true;
   g.add(post, board); group.add(g);
 }
+
+// Bus shelters on the trunk road (one per nav bus stop): steel frame, glass sides, bench, roof, a "АВТОБУС" plate on a pole.
+export function buildBusStops(world, nav, group) {
+  const metal = new GeoBuilder(), glass = new GeoBuilder(), plate = new GeoBuilder();
+  for (const s of nav.busStops) {
+    if (s.fallback) continue;
+    const tx = s.tx, tz = s.tz, nx = s.nx, nz = s.nz;                       // t = along the road, n = towards the houses (away from the road)
+    const tf = (u, y, w) => [s.x + tx * u + nx * w, y, s.z + tz * u + nz * w];
+    let gy = -1e9; for (const [u, w] of [[-1.8, -1], [1.8, -1], [-1.8, 1], [1.8, 1], [0, 0]]) { const p = tf(u, 0, w); gy = Math.max(gy, world.heightAt(p[0], p[2])); }
+    const g0 = gy + 0.05, base = g0 - 0.45;
+    const stone = [0.62, 0.62, 0.6], steel = [0.16, 0.3, 0.5], roof = [0.2, 0.23, 0.27], wood = [0.55, 0.38, 0.22];
+    metal.box(tf, -1.9, base, -1.0, 1.9, g0 + 0.1, 1.0, 2, stone, true);                                  // concrete pad
+    for (const u of [-1.7, 1.7]) for (const w of [-0.8, 0.8]) metal.box(tf, u - 0.05, g0 + 0.1, w - 0.05, u + 0.05, g0 + 2.45, w + 0.05, 2, steel);
+    metal.box(tf, -2.0, g0 + 2.45, -1.1, 2.0, g0 + 2.58, 1.1, 2, roof);                                    // flat roof
+    metal.box(tf, -2.0, g0 + 2.2, 1.04, 2.0, g0 + 2.45, 1.1, 2, steel);                                    // fascia (village side)
+    metal.box(tf, -1.1, g0 + 0.42, 0.35, 1.1, g0 + 0.48, 0.78, 1, wood);                                  // bench seat
+    metal.box(tf, -1.1, g0 + 0.7, 0.72, 1.1, g0 + 1.0, 0.77, 1, wood);                                    // bench back
+    for (const u of [-0.95, 0.95]) metal.box(tf, u - 0.04, g0 + 0.1, 0.4, u + 0.04, g0 + 0.42, 0.7, 1, steel);
+    // glass: back + both sides
+    glass.box(tf, -1.7, g0 + 0.25, 0.78, 1.7, g0 + 2.2, 0.8, 2, [1, 1, 1]);
+    glass.box(tf, -1.72, g0 + 0.25, -0.8, -1.7, g0 + 2.2, 0.8, 2, [1, 1, 1]);
+    glass.box(tf, 1.7, g0 + 0.25, -0.8, 1.72, g0 + 2.2, 0.8, 2, [1, 1, 1]);
+    // sign pole + plate (double-sided: faces along the road both ways)
+    const pu = 2.7, pw = -0.9;
+    metal.cylinder(tf(pu, 0, pw)[0], gy - 0.2, tf(pu, 0, pw)[2], 0.045, 0.045, 3.1, 6, 2, [0.5, 0.52, 0.55], true);
+    const pq = (w, flip) => plate.quad(tf(pu - 0.5, g0 + 2.55, w), tf(pu + 0.5, g0 + 2.55, w), tf(pu + 0.5, g0 + 3.15, w), tf(pu - 0.5, g0 + 3.15, w), flip ? [[1, 0], [0, 0], [0, 1], [1, 1]] : [[0, 0], [1, 0], [1, 1], [0, 1]], [1, 1, 1], tf(pu, g0 + 2.85, flip ? 0.5 : -2.5));
+    pq(pw - 0.06, false); pq(pw + 0.06, true);
+  }
+  if (metal.empty) return;
+  const m1 = new THREE.Mesh(metal.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.25 })); m1.castShadow = true; m1.receiveShadow = true; group.add(m1);
+  const m2 = new THREE.Mesh(glass.build(), new THREE.MeshStandardMaterial({ color: 0xa8c8d8, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.1, vertexColors: true, depthWrite: false, side: THREE.DoubleSide })); m2.renderOrder = 2; group.add(m2);
+  const tex = makeSignTexture([{ text: 'АВТОБУС', size: 78 }, { text: 'зупинка', size: 52 }], '#1b5fb4', '#ffffff', true, 512, 256);
+  const m3 = new THREE.Mesh(plate.build(), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, vertexColors: true, side: THREE.DoubleSide })); m3.castShadow = true; group.add(m3);
+}
