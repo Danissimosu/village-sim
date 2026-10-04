@@ -341,6 +341,8 @@ export function createGame(ctx) {
     if (g.fish && (S.q.fish === 0 || (S.q.fish === 1 && S.inv.fish >= 3))) t.push({ ...d(g.fish), ic: S.q.fish === 0 ? '❗' : '✔' });
     if (g.borsch && (S.q.borsch === 0 || (S.q.borsch === 1 && S.inv.potato >= 2 && S.inv.carrot >= 2 && S.inv.tomato >= 1))) t.push({ ...d(g.borsch), ic: S.q.borsch === 0 ? '❗' : '✔' });
     if (g.pie && (S.q.pie === 0 || (S.q.pie === 1 && S.inv.apples >= 6 && S.inv.eggs >= 2))) t.push({ ...d(g.pie), ic: S.q.pie === 0 ? '❗' : '✔' });
+    if (S.q.farm < 2 && (S.inv.seed_potato + S.inv.seed_carrot + S.inv.seed_tomato) > 0 && farm.plots.length) { let bp = null, bd = 1e9; for (const p of farm.plots) { if (S.farm[p.id]) continue; const dd = Math.hypot(p.g.cx - player.pos.x, p.g.cz - player.pos.z); if (dd < bd) { bd = dd; bp = p; } } if (bp) t.push({ x: bp.g.cx, z: bp.g.cz, ic: '🌱' }); }
+    for (const p of farm.plots) { const st = S.farm[p.id]; if (st && farm.frac(st) >= 1) t.push({ x: p.g.cx, z: p.g.cz, ic: '🧺' }); }
     return t.map((q) => ({ ...q, dist: Math.hypot(q.x - player.pos.x, q.z - player.pos.z) })).sort((a, b) => a.dist - b.dist).slice(0, 2);
   };
   let lastMark = 0;
@@ -361,6 +363,10 @@ export function createGame(ctx) {
   addEventListener('pagehide', () => save());
   document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
   refreshBar();
+  if (!loaded && !S.intro && !/[?&]manual=1/.test(location.search) && !/[?&]hud=0/.test(location.search)) setTimeout(() => {
+    if (S.intro || dlgOpen) return; S.intro = 1; dirty = true;
+    say('Добро пожаловать в Любимівку!', 'Краткая памятка', 'Гуляйте по селу, разговаривайте с жителями (кнопка действия внизу или клавиша F), берите яйца у кур, доите коров, ловите рыбу на прудах. Магазин работает с 8 до 20 ч. Откройте «🎒 Рюкзак и дела» — там задания. А на своих грядках (участки 35Б и 84) можно выращивать овощи: семена — в магазине.', [{ label: '📍 Показать мой участок 35Б', fn: () => { closeDlg(); if (ctx.gotoHome) ctx.gotoHome(); } }]);
+  }, 6000);
 
   return {
     farm, state: () => S, loaded, save, toast, openPanel, closePanel, talkTo, giver, cand: () => cand,
