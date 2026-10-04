@@ -296,6 +296,7 @@ export function addBuilding(S, world, b) {
     if (st.hip && st._hr !== undefined) cxl = clamp(cxl, -st._hr + 0.2, st._hr - 0.2);
     const czl = (rng() < 0.5 ? -1 : 1) * 0.35;
     const top = ridgeY + 0.85;
+    b.chimneyPos = tf(cxl, top + 0.2, czl);
     const Br = S.get(b.x, b.z, 'brick');
     Br.box(tf, cxl - 0.32, yt - 0.2, czl - 0.32, cxl + 0.32, top, czl + 0.32, 1.2, [0.85, 0.62, 0.52], true);
     Br.box(tf, cxl - 0.4, top, czl - 0.4, cxl + 0.4, top + 0.14, czl + 0.4, 1.2, [0.45, 0.45, 0.47], true);

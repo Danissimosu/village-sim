@@ -72,3 +72,4 @@ body.menu-hidden #npc-card { bottom: calc(env(safe-area-inset-bottom, 0px) + 14p
 body.menu-hidden #btn-bag { display: none; }
 #npc-card .talk { display: block; width: 100%; margin-top: 8px; font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: rgba(201, 105, 43, 0.9); border: 0; border-radius: 10px; padding: 9px; }
 body.menu-hidden #gbar { top: calc(env(safe-area-inset-top, 0px) + 10px); }
+body.menu-hidden #btn-weather { display: none; }

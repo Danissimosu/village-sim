@@ -23,7 +23,7 @@ const FRAG = /* glsl */`
 varying vec3 vDir;
 uniform sampler2D tHDR; uniform vec3 uSun; uniform vec3 uMoon; uniform vec3 uSunCol;
 uniform float uDay; uniform float uTwi; uniform float uTime; uniform float uEnv; uniform float uRot;
-uniform vec3 uFogOut; uniform vec3 uGround;
+uniform vec3 uFogOut; uniform vec3 uGround; uniform float uOver;
 float h31(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 void main(){
   vec3 d = normalize(vDir);
@@ -35,7 +35,8 @@ void main(){
   float sd = dot(d, uSun);
   vec3 tint = mix(vec3(1.0), vec3(1.0, 0.58, 0.4), clamp(uTwi * (0.25 + 0.75 * pow(max(sd, 0.0), 2.5)), 0.0, 1.0));
   vec3 skyDay = hdr * tint;
-  skyDay += uSunCol * (pow(max(sd, 0.0), 28.0) * 0.55 + pow(max(sd, 0.0), 5.0) * 0.12);
+  skyDay += uSunCol * (pow(max(sd, 0.0), 28.0) * 0.55 + pow(max(sd, 0.0), 5.0) * 0.12) * (1.0 - uOver);
+  { float lum = dot(skyDay, vec3(0.299, 0.587, 0.114)); vec3 grey = vec3(lum) * vec3(0.74, 0.79, 0.88) * 0.78 + vec3(0.02, 0.025, 0.03); skyDay = mix(skyDay, grey, uOver); }
   // night
   vec3 night = vec3(0.007, 0.013, 0.03) + vec3(0.0, 0.008, 0.016) * (1.0 - abs(d.y));
   vec3 sp = d * 380.0; vec3 id = floor(sp); float hs = h31(id);
@@ -44,7 +45,7 @@ void main(){
   float md = dot(d, uMoon);
   night += vec3(0.85, 0.9, 1.0) * (smoothstep(0.99965, 0.99985, md) * 3.0 + pow(max(md, 0.0), 60.0) * 0.05);
   vec3 col = mix(night, skyDay * uDay, clamp(uDay * 1.4, 0.0, 1.0));
-  col += uSunCol * smoothstep(0.99983, 0.99992, sd) * 40.0 * (1.0 - uEnv) * step(-0.02, d.y);
+  col += uSunCol * smoothstep(0.99983, 0.99992, sd) * 40.0 * (1.0 - uEnv) * step(-0.02, d.y) * (1.0 - smoothstep(0.05, 0.4, uOver));
   if (uEnv > 0.5 && d.y < 0.0) col = mix(col, uGround, smoothstep(0.0, -0.12, d.y));
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
@@ -59,7 +60,7 @@ export class Sky {
     this.renderer = renderer; this.scene = scene;
     this.uniforms = {
       tHDR: { value: null }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uMoon: { value: new THREE.Vector3(0, -1, 0) }, uSunCol: { value: new THREE.Color(1, 0.9, 0.7) },
-      uDay: { value: 1 }, uTwi: { value: 0 }, uTime: { value: 0 }, uEnv: { value: 0 }, uRot: { value: 0 }, uFogOut: { value: new THREE.Color(0.6, 0.7, 0.85) }, uGround: { value: new THREE.Color(0.1, 0.12, 0.07) },
+      uDay: { value: 1 }, uTwi: { value: 0 }, uTime: { value: 0 }, uEnv: { value: 0 }, uRot: { value: 0 }, uFogOut: { value: new THREE.Color(0.6, 0.7, 0.85) }, uGround: { value: new THREE.Color(0.1, 0.12, 0.07) }, uOver: { value: 0 },
     };
     this.mat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG, side: THREE.BackSide, depthWrite: false, depthTest: true, fog: false });
     const geo = new THREE.SphereGeometry(1, 40, 20);
@@ -74,6 +75,7 @@ export class Sky {
     this.fog = new THREE.FogExp2(0x9fb4cc, 0.0017); scene.fog = this.fog;
     this.sunDir = new THREE.Vector3(0, 1, 0); this.lightDir = new THREE.Vector3(0, 1, 0);
     this.dayFog = new THREE.Color(0.55, 0.66, 0.82);
+    this.wx = { over: 0, fog: 0 };
     this.hour = 10.5; this.state = { day: 1, sunAlt: 0.5, night: 0 };
   }
   async load() {
@@ -106,16 +108,18 @@ export class Sky {
     const useSun = sa > -0.06;
     this.lightDir.copy(useSun ? sv : U.uMoon.value);
     this.sun.color.copy(useSun ? sunCol : new THREE.Color(0.55, 0.65, 1.0));
-    this.sun.intensity = useSun ? Math.max(sunI, moonI) : moonI;
+    this.sun.intensity = (useSun ? Math.max(sunI, moonI) : moonI) * (1 - 0.72 * this.wx.over);
+    U.uOver.value = this.wx.over;
     // fog
     const night = new THREE.Color(0.006, 0.01, 0.022);
     const twiC = new THREE.Color(0.62, 0.36, 0.28);
     const fogC = night.clone().lerp(this.dayFog.clone().lerp(twiC, twi * 0.55), day);
+    { const lum = (fogC.r + fogC.g + fogC.b) / 3; fogC.lerp(new THREE.Color(lum * 0.92, lum * 0.96, lum), Math.min(1, this.wx.over * 0.85 + this.wx.fog * 0.6)); if (this.wx.fog > 0.01) fogC.lerp(new THREE.Color(0.72, 0.75, 0.78).multiplyScalar(Math.max(0.04, day)), this.wx.fog * 0.6); }
     this.fog.color.copy(fogC);
     U.uFogOut.value.copy(fogC).convertLinearToSRGB();
-    this.fog.density = lerp(0.0014, 0.0019, 1 - day) + twi * 0.0004;
+    this.fog.density = (lerp(0.0014, 0.0019, 1 - day) + twi * 0.0004) * (1 + 1.2 * this.wx.over) + 0.011 * this.wx.fog;
     U.uGround.value.setRGB(0.1, 0.12, 0.07).multiplyScalar(Math.max(0.03, day));
-    this.renderer.toneMappingExposure = lerp(1.45, 0.92, day);
+    this.renderer.toneMappingExposure = lerp(1.45, 0.92, day) * (1 + 0.1 * this.wx.over);
     this.state = { day, sunAlt: sa, night: 1 - day };
     // dome follows camera
     if (camera) this.dome.position.copy(camera.position);

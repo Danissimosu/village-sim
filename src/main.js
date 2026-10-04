@@ -21,6 +21,9 @@ import { NpcSim } from './world/npc-sim.js';
 import { NpcRenderer } from './world/npc-render.js';
 import { CivicSigns } from './world/npc-signs.js';
 import { Fauna } from './world/fauna.js';
+import { Details } from './world/details.js';
+import { Ambient } from './world/ambient.js';
+import { Weather, WEATHER, WEATHER_ORDER } from './world/weather.js';
 import { createGame } from './game/game.js';
 import { createNpcCard } from './ui/npc-card.js';
 import { planHeroPlot, buildHeroPlot, filterHeroTrees, HERO_ADDRESS } from './world/hero.js';
@@ -131,6 +134,8 @@ async function boot() {
   waters.setReflection(Q.reflect);
 
   const fauna = new Fauna(scene, world, layout, rasters, nav);
+  const details = new Details(scene, world, layout, rasters, nav);
+  const ambient = new Ambient(scene, world, layout);
 
   // ---- villagers: navigation graph, population data, simulation, instanced renderer
   setLoad(0.96, 'Жители села…');
@@ -215,7 +220,10 @@ async function boot() {
   // ---- villager selection: tap / click (or E at the crosshair) shows a card
   const card = createNpcCard();
   card.onClose(() => { selected = null; });
-  let weather = 'clear';
+  let weather = params.get('w') && WEATHER[params.get('w')] ? params.get('w') : 'clear';
+  const wx = new Weather(scene, sky); wx.set(weather); if (weather !== 'clear') { wx.over = weather === 'rain' ? 0.88 : 0.55; wx.fog = weather === 'fog' ? 1 : 0; wx.rain = weather === 'rain' ? 1 : 0; }
+  { const wb = document.createElement('button'); wb.className = 'btn'; wb.id = 'btn-weather'; wb.textContent = 'Погода: ' + WEATHER[weather]; hud.el('btns').insertBefore(wb, hud.el('btn-hide'));
+    wb.addEventListener('click', () => { weather = WEATHER_ORDER[(WEATHER_ORDER.indexOf(weather) + 1) % WEATHER_ORDER.length]; wx.set(weather); wb.textContent = 'Погода: ' + WEATHER[weather]; }); }
   const game = createGame({ world, nav, sim, fauna, player, layout, camera, hud, getClock: () => ({ hour, day }), setClock: (h, d) => { hour = h; day = d; sky.setHour(h, camera, 0, true); hud.setClock(h, day); }, getWeather: () => weather });
   game.applyLoaded(params.has('t'));
   card.onTalk(() => { if (!selected) return; if (selected.hidden || Math.hypot(selected.x - player.pos.x, selected.z - player.pos.z) > 7) game.toast('Подойдите ближе, чтобы поговорить'); else { card.hide(); game.talkTo(selected); selected = null; } });
@@ -270,6 +278,9 @@ async function boot() {
     sim.update(dt, day, hour, player.pos);
     fauna.update(dt, player.pos, hour, time);
     game.update(time);
+    wx.update(dt, time, camera, 1 - sky.state.day);
+    details.update(1 - sky.state.day);
+    ambient.update(dt, time, player.pos, hour, 1 - sky.state.day, weather);
     npcR.update(camera, Q, time);
     if (time - lastSign > 0.5) { lastSign = time; signs.update(player.pos); hud.setPop(pop.size, sim.stats.outside); }
     if (card.visible) {
@@ -301,7 +312,7 @@ async function boot() {
   setTimeout(() => document.getElementById('loader').classList.add('done'), 300);
 
   window.__village = {
-    fauna, game, hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
+    fauna, game, wx, details, ambient, hero: heroPoi, heroPlan, gotoHero, hero84: heroPoi84, heroPlan84, gotoHero84, THREE, renderer, scene, camera, world, layout, rasters, pop, nav, sim, npcR, card, sky, player, grass, trees, waters, terrain, materials,
     step: (n = 1, dt = 0.05) => { for (let i = 0; i < n; i++) frame(dt); }, snap: () => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', 0.92); },
     stats: () => ({ npc: { ...npcR.counts, ...sim.stats, total: pop.size }, calls: info.render.calls, tris: info.render.triangles, geos: info.memory.geometries, textures: info.memory.textures, fps, bstat, fenceTris, houses: layout.stats, trees: trees.count }),
     setHour: (h, d) => { hour = h; if (d !== undefined) day = d; auto = false; sky.setHour(h, camera, time, true); hud.setClock(h, day); },

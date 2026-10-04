@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { mulberry32, clamp } from '../util.js';
 
 // ---- tiny vertex-coloured geometry builder (flat shaded boxes / cylinders)
-class VB {
+export class VB {
   constructor() { this.p = []; this.n = []; this.c = []; }
   tri(a, b, c, col) {
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
