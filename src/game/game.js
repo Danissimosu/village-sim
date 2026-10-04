@@ -10,7 +10,7 @@ const ITEMS = { eggs: ['Яйца', '🥚'], milk: ['Молоко', '🥛'], brea
 const BUY = { bread: 25, milk: 45, seed_potato: 15, seed_carrot: 10, seed_tomato: 20 }, SELL = { eggs: 8, milk: 35, apples: 5, fish: 30, potato: 6, carrot: 4, tomato: 10 };
 const SHOP_OPEN = 8, SHOP_CLOSE = 20;
 const plural = (n, a, b, c) => { const m = n % 100, d = n % 10; return m >= 11 && m <= 14 ? c : d === 1 ? a : d >= 2 && d <= 4 ? b : c; };
-const fresh = () => ({ v: 1, money: 40, inv: { eggs: 0, milk: 0, bread: 0, apples: 0, fish: 0, potato: 0, carrot: 0, tomato: 0, seed_potato: 0, seed_carrot: 0, seed_tomato: 0 }, q: { bread: 0, eggs: 0, milk: 0, fish: 0, pets: 0, petsN: 0, borsch: 0, pie: 0, farm: 0, harvests: 0 }, talked: {}, gift: {}, farm: {}, treeDay: {}, day: 0, hour: 10.5, pos: null });
+const fresh = () => ({ v: 1, money: 40, inv: { eggs: 0, milk: 0, bread: 0, apples: 0, fish: 0, potato: 0, carrot: 0, tomato: 0, seed_potato: 0, seed_carrot: 0, seed_tomato: 0 }, q: { bread: 0, eggs: 0, milk: 0, fish: 0, pets: 0, petsN: 0, borsch: 0, pie: 0, farm: 0, harvests: 0, letter: 0 }, talked: {}, gift: {}, farm: {}, treeDay: {}, day: 0, hour: 10.5, pos: null });
 
 export function createGame(ctx) {
   const { world, nav, sim, fauna, player, layout, camera, hud, getClock, setClock, getWeather, scene } = ctx;
@@ -40,6 +40,10 @@ export function createGame(ctx) {
     borsch: pickG((a) => a.res.female && a.res.age >= 40 && a.res.job !== 'shop' && a.res.job !== 'teacher'),
     pie: pickG((a) => a.res.female && a.res.age >= 25 && a.res.age < 70 && a.res.job !== 'shop' && a.res.job !== 'teacher'),
   };
+  // letter quest: the sender lives near the centre, the addressee far out on the edge of the village
+  giver.letter = pickG((a) => a.res.age >= 30 && a.res.age < 80 && a.res.job !== 'shop' && a.res.job !== 'teacher');
+  { const far = sim.actors.filter((a) => a.house && a.house.door && !usedHH.has(a.res.household) && a.res.age >= 25 && Math.hypot(a.house.x - centre.x, a.house.z - centre.z) > 160 && Math.hypot(a.house.x - centre.x, a.house.z - centre.z) < 330).sort((p, q) => p.res.id - q.res.id);
+    giver.letterTo = far.length ? far[Math.floor(far.length / 2)] : null; if (giver.letterTo) usedHH.add(giver.letterTo.res.household); }
   const fullName = (a) => `${a.res.first} ${a.res.last}`;
   const shopDoor = (from) => { let best = null, bd = 1e9; for (const s of nav.shops) { const d = Math.hypot(s.door.x - from.x, s.door.z - from.z); if (d < bd) { bd = d; best = s; } } return best; };
 
@@ -78,6 +82,7 @@ export function createGame(ctx) {
     out.push({ title: 'Яйца к приезду гостей', st: S.q.eggs, text: ['Поговорите с ' + where(g.eggs), `Соберите 4 яйца у кур во дворах (${Math.min(4, S.inv.eggs)}/4) и отнесите ${where(g.eggs)}`, 'Выполнено ✔'] });
     out.push({ title: 'Парное молоко', st: S.q.milk, text: ['Поговорите с ' + where(g.milk), 'Подоите корову во дворе и отнесите банку молока ' + where(g.milk), 'Выполнено ✔'] });
     out.push({ title: 'Уха на ужин', st: S.q.fish, text: ['Поговорите с ' + where(g.fish), `Наловите 3 рыбы на пруду — встаньте у берега и жмите «Закинуть удочку» (${Math.min(3, S.inv.fish)}/3), отнесите ${where(g.fish)}`, 'Выполнено ✔'] });
+    if (g.letter && g.letterTo) out.push({ title: 'Письмо на край села', st: S.q.letter, text: ['Поговорите с ' + where(g.letter), `Отнесите письмо: ${where(g.letterTo)} — это на окраине, придётся прогуляться`, 'Выполнено ✔'] });
     out.push({ title: 'Борщ на обед', st: S.q.borsch, text: ['Поговорите с ' + where(g.borsch), `Вырастите на своей грядке и принесите ${where(g.borsch)}: 🥔2 🥕2 🍅1 (у вас ${Math.min(2, S.inv.potato)}/2, ${Math.min(2, S.inv.carrot)}/2, ${Math.min(1, S.inv.tomato)}/1)`, 'Выполнено ✔'] });
     out.push({ title: 'Яблочный пирог', st: S.q.pie, text: ['Поговорите с ' + where(g.pie), `Соберите 6 яблок с яблонь во дворах (${Math.min(6, S.inv.apples)}/6) и 2 яйца (${Math.min(2, S.inv.eggs)}/2), отнесите ${where(g.pie)}`, 'Выполнено ✔'] });
     out.push({ title: 'Свой огород', st: S.q.farm >= 2 ? 2 : 1, text: ['', 'Купите семена в магазине (🌱 картофель, морковь, томаты) и посадите на грядках участка 35Б или 84 — они подписаны «🌱 Посадить». Дождь ускоряет рост, полив тоже.', 'Выполнено ✔ — первый урожай собран'] });
@@ -203,6 +208,8 @@ export function createGame(ctx) {
     if (a === giver.eggs) return questEggs(a, name, sub);
     if (a === giver.milk) return questMilk(a, name, sub);
     if (a === giver.fish) return questFish(a, name, sub);
+    if (giver.letter && a === giver.letter) return questLetter(a, name, sub);
+    if (giver.letterTo && a === giver.letterTo) { if (S.q.letter === 1) { say(name, sub, 'Письмо? Мне?! Надо же, давно никто не писал на бумаге. Спасибо, что дошли пешком — вот, возьмите за труды.', [{ label: 'Передать письмо', fn: () => { S.q.letter = 2; addMoney(80); addItem('apples', 2); toast('Задание выполнено: +80 ₴, +2 яблока'); closeDlg(); } }]); return; } return chat(a, name, sub); }
     if (a === giver.borsch) return questGeneric('borsch', a, name, sub, QDEF.borsch);
     if (a === giver.pie) return questGeneric('pie', a, name, sub, QDEF.pie);
     chat(a, name, sub);
@@ -241,6 +248,13 @@ export function createGame(ctx) {
   const QDEF = {
     borsch: { title: 'Борщ на обед', intro: 'Внук приехал, а у меня на борщ ни картошки, ни моркови — спина болит, на огород не выйду. Выручишь? Нужно две картошки, две морковки и помидор. Заплачу сто двадцать.', accept: 'Выручу', need: { potato: 2, carrot: 2, tomato: 1 }, reward: 120, ok: 'Ой, какие красивые! Теперь борщ будет на славу. Держи сто двадцать гривен.', notYet: () => `Пока у тебя 🥔${Math.min(2, S.inv.potato)}/2 🥕${Math.min(2, S.inv.carrot)}/2 🍅${Math.min(1, S.inv.tomato)}/1. Овощи можно вырастить на грядках — семена в магазине.` },
     pie: { title: 'Яблочный пирог', intro: 'Хочу испечь яблочный пирог на воскресенье, а яблок свежих нет. Принесёшь шесть яблок и пару яиц? Заплачу девяносто и пирожком угощу.', accept: 'Принесу', need: { apples: 6, eggs: 2 }, reward: 90, give: { bread: 1 }, ok: 'Яблочки как на подбор! Вот тебе деньги и свежая буханка в придачу.', notYet: () => `Пока 🍎${Math.min(6, S.inv.apples)}/6 и 🥚${Math.min(2, S.inv.eggs)}/2. Яблони — во дворах, куры — там же.` },
+  };
+  const questLetter = (a, name, sub) => {
+    const to = giver.letterTo; if (!to) return chat(a, name, sub);
+    const tn = `${fullName(to)}${to.res.address ? ' (' + to.res.address + ')' : ''}`;
+    if (S.q.letter === 0) say(name, sub, `Нужно передать письмо на окраину села, а ноги уже не те… Отнесёте лично в руки? Адрес: ${tn}. Адресат вас отблагодарит.`, [{ label: 'Отнесу', fn: () => { S.q.letter = 1; dirty = true; toast('Новое задание: Письмо на край села'); closeDlg(); } }]);
+    else if (S.q.letter === 1) say(name, sub, `Письмо ждёт адресата: ${tn}. Это на самой окраине села.`, []);
+    else chat(a, name, sub);
   };
   const questGeneric = (key, a, name, sub, d) => {
     const st = S.q[key];
@@ -321,7 +335,7 @@ export function createGame(ctx) {
       if (a.hidden) continue; const d = Math.hypot(a.x - px, a.z - pz); if (d > 3.8) continue;
       offer(d, 0.2, `💬 Поговорить: ${a.res.first}`, () => talkTo(a), 'n');
     }
-    for (const key of ['bread', 'eggs', 'milk', 'fish', 'borsch', 'pie']) { const g = giver[key]; if (!g || !g.hidden) continue; const d = Math.hypot(g.house.door.x - px, g.house.door.z - pz); if (d < 3.6) offer(d, 0.5, `🚪 Постучать: ${g.res.first}`, () => talkTo(g), 'd'); }
+    for (const key of ['bread', 'eggs', 'milk', 'fish', 'borsch', 'pie', 'letter', 'letterTo']) { const g = giver[key]; if (!g || !g.hidden) continue; const d = Math.hypot(g.house.door.x - px, g.house.door.z - pz); if (d < 3.6) offer(d, 0.5, `🚪 Постучать: ${g.res.first}`, () => talkTo(g), 'd'); }
     cand = best;
     if (best && !dlgOpen) { act.style.display = 'block'; act.textContent = best.label + '  [F]'; } else act.style.display = 'none';
   };
@@ -339,6 +353,7 @@ export function createGame(ctx) {
     if (g.eggs && (S.q.eggs === 0 || (S.q.eggs === 1 && S.inv.eggs >= 4))) t.push({ ...d(g.eggs), ic: S.q.eggs === 0 ? '❗' : '✔' });
     if (g.milk && (S.q.milk === 0 || (S.q.milk === 1 && S.inv.milk > 0))) t.push({ ...d(g.milk), ic: S.q.milk === 0 ? '❗' : '✔' });
     if (g.fish && (S.q.fish === 0 || (S.q.fish === 1 && S.inv.fish >= 3))) t.push({ ...d(g.fish), ic: S.q.fish === 0 ? '❗' : '✔' });
+    if (g.letter && g.letterTo) { if (S.q.letter === 0) t.push({ ...d(g.letter), ic: '❗' }); else if (S.q.letter === 1) t.push({ ...d(g.letterTo), ic: '✉' }); }
     if (g.borsch && (S.q.borsch === 0 || (S.q.borsch === 1 && S.inv.potato >= 2 && S.inv.carrot >= 2 && S.inv.tomato >= 1))) t.push({ ...d(g.borsch), ic: S.q.borsch === 0 ? '❗' : '✔' });
     if (g.pie && (S.q.pie === 0 || (S.q.pie === 1 && S.inv.apples >= 6 && S.inv.eggs >= 2))) t.push({ ...d(g.pie), ic: S.q.pie === 0 ? '❗' : '✔' });
     if (S.q.farm < 2 && (S.inv.seed_potato + S.inv.seed_carrot + S.inv.seed_tomato) > 0 && farm.plots.length) { let bp = null, bd = 1e9; for (const p of farm.plots) { if (S.farm[p.id]) continue; const dd = Math.hypot(p.g.cx - player.pos.x, p.g.cz - player.pos.z); if (dd < bd) { bd = dd; bp = p; } } if (bp) t.push({ x: bp.g.cx, z: bp.g.cz, ic: '🌱' }); }
@@ -365,7 +380,7 @@ export function createGame(ctx) {
   refreshBar();
   if (!loaded && !S.intro && !/[?&]manual=1/.test(location.search) && !/[?&]hud=0/.test(location.search)) setTimeout(() => {
     if (S.intro || dlgOpen) return; S.intro = 1; dirty = true;
-    say('Добро пожаловать в Любимівку!', 'Краткая памятка', 'Гуляйте по селу, разговаривайте с жителями (кнопка действия внизу или клавиша F), берите яйца у кур, доите коров, ловите рыбу на прудах. Магазин работает с 8 до 20 ч. Откройте «🎒 Рюкзак и дела» — там задания. А на своих грядках (участки 35Б и 84) можно выращивать овощи: семена — в магазине.', [{ label: '📍 Показать мой участок 35Б', fn: () => { closeDlg(); if (ctx.gotoHome) ctx.gotoHome(); } }]);
+    say('Добро пожаловать в Любимівку!', 'Краткая памятка', 'Гуляйте по селу, разговаривайте с жителями (кнопка действия внизу или клавиша F), берите яйца у кур, доите коров, ловите рыбу на прудах. Магазин работает с 8 до 20 ч. Откройте «🎒 Рюкзак и дела» — там задания. Внешний вид переключается кнопкой «Стиль» (мрачный ретро‑хоррор или реализм). А на своих грядках (участки 35Б и 84) можно выращивать овощи: семена — в магазине.', [{ label: '📍 Показать мой участок 35Б', fn: () => { closeDlg(); if (ctx.gotoHome) ctx.gotoHome(); } }]);
   }, 6000);
 
   return {
